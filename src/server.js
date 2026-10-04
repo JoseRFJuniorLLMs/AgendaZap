@@ -140,15 +140,50 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.post('/api/users',auth,owner,async(req,res)=>{const data=parse(z.object({name:text,email:z.string().email().transform(x=>x.toLowerCase()),password:z.string().min(12).max(128),role:z.enum(['manager','attendant','professional']),professional_id:id.nullable().optional()}).strict(),req.body);const result=await mutate(req,(t,state)=>{if(state.accounts[data.email])d.fail('E-mail já cadastrado',409);if(data.role==='professional'){if(!data.professional_id)d.fail('Selecione um profissional');d.entity(t,'professionals',data.professional_id);}const {password,...rest}=data;const a={id:d.uid(),...rest,tenant_id:t.id,active:true,password_hash:d.passwordHash(password)};state.accounts[a.id]=a;state.accounts[a.email]={alias:a.id};d.audit(t,req.account.id,'user.created',a.id);const {password_hash,...safe}=a;return safe;});res.status(201).json(result);});
   router.post('/api/users/:id/disable',auth,owner,async(req,res)=>{await mutate(req,(t,state)=>{const a=state.accounts[req.params.id];if(!a||a.tenant_id!==t.id)d.fail('Usuário não encontrado',404);if(a.role==='owner')d.fail('Não é possível desativar proprietário',409);a.active=false;d.audit(t,req.account.id,'user.disabled',a.id);});res.json({ok:true});});
   router.get('/api/audit',auth,manager,(req,res)=>res.json(req.tenant.audit.slice(-500).reverse()));
-  router.get('/api/billing',auth,owner,(req,res)=>res.json({plan:billing.billingConfig(),subscription:req.tenant.billing||{status:'not_configured'}}));
-  router.post('/api/billing/checkout',auth,owner,async(req,res)=>{
-    // Persist the idempotency key before creating an external checkout.
-    const key=await mutate(req,t=>{if(t.billing&&['authorized','pending'].includes(t.billing.status)&&t.billing.checkout_url)return null;t.billing_request_key||=d.uid();return t.billing_request_key;});
-    if(!key)return res.json(req.tenant.billing);
-    const result=await billing.subscription(req.tenant,req.account.email,key);
-    await mutate(req,t=>{t.billing=result;d.audit(t,req.account.id,'billing.checkout_created',result.provider_id);});res.json(result);
+  router.get('/api/billing',auth,owner,(req,res)=>{
+    const config=billing.billingConfig();
+    res.json({
+      plans:config.plans,
+      provider:config.provider,
+      provider_configured:config.provider_configured,
+      subscription:req.tenant.billing||{status:'not_configured'}
+    });
   });
-  router.post('/api/billing/cancel',auth,owner,async(req,res)=>{const subscription=req.tenant.billing;if(!subscription?.provider_id)d.fail('Sem assinatura ativa',409);const result=await billing.cancelSubscription(subscription.provider_id);await mutate(req,t=>{t.billing.status=result.status;t.billing_request_key=null;d.audit(t,req.account.id,'billing.cancelled',subscription.provider_id);});res.json({status:result.status});});
+  router.post('/api/billing/checkout',auth,owner,async(req,res)=>{
+    const data=parse(z.object({plan_id:z.string().refine(value=>billing.PLANS.some(plan=>plan.id===value),'Plano inválido')}).strict(),req.body);
+    const current=req.tenant.billing;
+    if(current&&['authorized','pending'].includes(current.status)&&current.checkout_url){
+      if(current.plan_id===data.plan_id)return res.json(current);
+      d.fail('Cancele a assinatura atual antes de escolher outro plano',409);
+    }
+    const key=await mutate(req,t=>{
+      if(t.billing_request_plan!==data.plan_id){
+        t.billing_request_key=d.uid();
+        t.billing_request_plan=data.plan_id;
+      }
+      t.billing_request_key||=d.uid();
+      return t.billing_request_key;
+    });
+    const result=await billing.subscription(req.tenant,req.account.email,key,data.plan_id);
+    await mutate(req,t=>{
+      t.billing=result;
+      t.billing_request_plan=data.plan_id;
+      d.audit(t,req.account.id,'billing.checkout_created',result.provider_id);
+    });
+    res.json(result);
+  });
+  router.post('/api/billing/cancel',auth,owner,async(req,res)=>{
+    const subscription=req.tenant.billing;
+    if(!subscription?.provider_id)d.fail('Sem assinatura ativa',409);
+    const result=await billing.cancelSubscription(subscription.provider_id);
+    await mutate(req,t=>{
+      t.billing.status=result.status;
+      t.billing_request_key=null;
+      t.billing_request_plan=null;
+      d.audit(t,req.account.id,'billing.cancelled',subscription.provider_id);
+    });
+    res.json({status:result.status});
+  });
   router.get('/api/export',auth,owner,async(req,res)=>{const data=await mutate(req,t=>{d.audit(t,req.account.id,'tenant.exported',t.id);return {...t,appointments:t.appointments.map(safeAppointment)};});res.attachment('agendazap-export.json').json(data);});
 
   router.get('/api/public/:slug', (req,res)=>res.json(catalog(getTenant(req.params.slug))));
