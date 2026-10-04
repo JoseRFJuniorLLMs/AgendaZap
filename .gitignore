@@ -9,3 +9,7 @@ graphify-out/
 *.tar.gz
 *.log
 .deploy/
+
+.ui-test-data/
+test-results/
+playwright-report/

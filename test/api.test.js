@@ -48,3 +48,34 @@ test('published root redirects once and serves application without a redirect lo
   const withoutSlash=await fetch(root,{redirect:'manual'});assert.equal(withoutSlash.status,308);assert.equal(withoutSlash.headers.get('location'),'/AgendaZap/');
   const response=await fetch(root+'/');assert.equal(response.status,200);assert.match(await response.text(),/id="app"/);
 });
+
+
+test('Voice AI authorization is tenant-aware and restricted to managers',async()=>{
+  const owner=await register('voice-guard');
+  const tenantId=owner.tenant.id;
+
+  let response=await fetch(url+'/voice-authorize',{
+    headers:{cookie:owner.cookie,'x-original-uri':`/AgendaZap/api/voice/config/${tenantId}`}
+  });
+  assert.equal(response.status,204);
+
+  response=await fetch(url+'/voice-authorize',{
+    headers:{cookie:owner.cookie,'x-original-uri':'/AgendaZap/api/voice/config/another-tenant'}
+  });
+  assert.equal(response.status,403);
+
+  let created=await request('/users',{method:'POST',session:owner,body:{
+    name:'Atendente Voice',
+    email:'voice-staff@example.com',
+    password:'Strong-test-password1',
+    role:'attendant'
+  }});
+  assert.equal(created.status,201);
+  const login=await request('/auth/login',{method:'POST',body:{email:'voice-staff@example.com',password:'Strong-test-password1'}});
+  const staff={...login.data,cookie:login.cookie};
+
+  response=await fetch(url+'/voice-authorize',{
+    headers:{cookie:staff.cookie,'x-original-uri':`/AgendaZap/api/voice/tts/${tenantId}`}
+  });
+  assert.equal(response.status,403);
+});

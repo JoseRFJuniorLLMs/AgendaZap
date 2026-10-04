@@ -91,6 +91,12 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   });
   router.post('/api/auth/logout',auth,async(req,res)=>{await store.transaction(req.account.id,state=>{state.sessions[d.hashToken(token(req))].revoked=true;});res.clearCookie(cookieName,{path:basePath||'/'});res.json({ok:true});});
   router.get('/api/auth/me',auth,(req,res)=>res.json(accountResponse(req)));
+  router.get('/api/voice-authorize',auth,manager,(req,res)=>{
+    const original=String(req.get('x-original-uri')||'');
+    const match=original.match(/\/(?:api\/voice\/(?:config|usage|transcribe|tts|respond)|ws\/voice\/live)\/([a-zA-Z0-9_-]{1,64})(?:[/?]|$)/);
+    if(!match||match[1]!==req.tenant.id)return res.sendStatus(403);
+    res.sendStatus(204);
+  });
   router.post('/api/auth/password',auth,async(req,res)=>{const data=parse(z.object({current:z.string().max(128),password:z.string().min(12).max(128)}).strict(),req.body);if(!d.passwordValid(data.current,req.account.password_hash))d.fail('Senha atual incorreta',403);await mutate(req,(t,state)=>{state.accounts[req.account.id].password_hash=d.passwordHash(data.password);for(const s of Object.values(state.sessions))if(s.account_id===req.account.id)s.revoked=true;d.audit(t,req.account.id,'auth.password_changed',req.account.id);});res.json({ok:true});});
   router.get('/api/dashboard',auth,(req,res)=>{
     const day=parse(date,req.query.date||d.localParts(Date.now(),req.tenant.timezone).date);

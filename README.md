@@ -6,6 +6,10 @@
 
 **AgendaZap** é um SaaS de atendimento, agendamento e **recuperação automática de receita** via WhatsApp para pequenos negócios de serviços.
 
+## Frontend canônico
+
+A única UI servida em produção está em `public/`. O protótipo estático anterior foi preservado em `legacy/prototype/` apenas como referência histórica, evitando alterações acidentais no frontend errado.
+
 ## Identidade visual
 
 Ativos oficiais:
