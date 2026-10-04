@@ -16,6 +16,15 @@
   const mobileMore = document.querySelector('[data-action="mobile-more"]');
   const mobileMoreMenu = document.getElementById('mobileMoreMenu');
   const voiceModeInputs = [...document.querySelectorAll('input[name="voiceMode"]')];
+  const voiceApiStatus = document.getElementById('voiceApiStatus');
+  const voiceVocabularySummary = document.getElementById('voiceVocabularySummary');
+  const voiceTestFile = document.getElementById('voiceTestFile');
+  const voiceTestResult = document.getElementById('voiceTestResult');
+  const voiceTestPlayer = document.getElementById('voiceTestPlayer');
+  const voiceUsageRequests = document.getElementById('voiceUsageRequests');
+  const voiceUsageErrors = document.getElementById('voiceUsageErrors');
+  const voiceUsageChars = document.getElementById('voiceUsageChars');
+  const DEMO_TENANT = 'demo';
 
   const routes = {
     dashboard: '/',
@@ -162,19 +171,169 @@
       : 'Agendamento salvo localmente na demonstração.');
   });
 
-  const savedVoiceMode = localStorage.getItem('agendazap-voice-mode') || 'mirror_customer';
+  let voiceConfigCache = null;
+
+  async function voiceFetch(path, options = {}) {
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(options.headers || {})
+      }
+    });
+
+    if (!response.ok) {
+      let message = 'Falha no Voice AI';
+      try {
+        const body = await response.json();
+        message = body.message || body.error || message;
+      } catch {}
+      throw new Error(message);
+    }
+
+    return response;
+  }
+
+  function applyVoiceConfig(config) {
+    voiceConfigCache = config;
+    const mode = config.responseMode || 'mirror_customer';
+    localStorage.setItem('agendazap-voice-mode', mode);
+    voiceModeInputs.forEach(input => { input.checked = input.value === mode; });
+
+    if (voiceVocabularySummary) {
+      const terms = config.customVocabulary || [];
+      voiceVocabularySummary.textContent = terms.length
+        ? terms.slice(0, 6).join(', ') + (terms.length > 6 ? ` +${terms.length - 6}` : '')
+        : 'Nenhum termo personalizado configurado.';
+    }
+  }
+
+  async function refreshVoiceUsage() {
+    try {
+      const response = await voiceFetch(`/api/voice/usage/${DEMO_TENANT}`);
+      const usage = await response.json();
+      if (voiceUsageRequests) voiceUsageRequests.textContent = String(usage.requests || 0);
+      if (voiceUsageErrors) voiceUsageErrors.textContent = String(usage.errors || 0);
+      if (voiceUsageChars) voiceUsageChars.textContent = String(usage.ttsCharacters || 0);
+    } catch {}
+  }
+
+  async function initVoiceApi() {
+    const fallbackMode = localStorage.getItem('agendazap-voice-mode') || 'mirror_customer';
+    voiceModeInputs.forEach(input => { input.checked = input.value === fallbackMode; });
+
+    try {
+      const healthResponse = await voiceFetch('/api/voice/health');
+      const health = await healthResponse.json();
+      if (voiceApiStatus) {
+        voiceApiStatus.textContent = health.configured ? 'Gemini conectado' : 'Gemini sem chave';
+        voiceApiStatus.className = health.configured ? 'status confirmed' : 'status waiting';
+      }
+
+      const configResponse = await voiceFetch(`/api/voice/config/${DEMO_TENANT}`);
+      applyVoiceConfig(await configResponse.json());
+      await refreshVoiceUsage();
+    } catch (error) {
+      if (voiceApiStatus) {
+        voiceApiStatus.textContent = 'Modo demo';
+        voiceApiStatus.className = 'status waiting';
+      }
+    }
+  }
+
   voiceModeInputs.forEach(input => {
-    input.checked = input.value === savedVoiceMode;
-    input.addEventListener('change', () => {
+    input.addEventListener('change', async () => {
       if (!input.checked) return;
       localStorage.setItem('agendazap-voice-mode', input.value);
-      showToast('Modo de voz salvo nesta demonstração.');
+
+      try {
+        const response = await voiceFetch(`/api/voice/config/${DEMO_TENANT}`, {
+          method: 'PUT',
+          body: JSON.stringify({ responseMode: input.value })
+        });
+        applyVoiceConfig(await response.json());
+        showToast('Modo de voz salvo no tenant demo.');
+      } catch {
+        showToast('Backend indisponível; preferência mantida apenas neste navegador.');
+      }
     });
   });
 
-  document.querySelector('[data-action="voice-vocabulary"]')?.addEventListener('click', () => {
-    showToast('Vocabulário por tenant será conectado ao backend do Voice AI.');
+  document.querySelector('[data-action="voice-vocabulary"]')?.addEventListener('click', async () => {
+    const current = voiceConfigCache?.customVocabulary || [];
+    const raw = window.prompt(
+      'Termos separados por vírgula:',
+      current.join(', ')
+    );
+    if (raw === null) return;
+
+    const customVocabulary = [...new Set(raw.split(',').map(v => v.trim()).filter(Boolean))];
+
+    try {
+      const response = await voiceFetch(`/api/voice/config/${DEMO_TENANT}`, {
+        method: 'PUT',
+        body: JSON.stringify({ customVocabulary })
+      });
+      applyVoiceConfig(await response.json());
+      showToast('Vocabulário atualizado.');
+    } catch (error) {
+      showToast('Não foi possível salvar o vocabulário no backend.');
+    }
   });
+
+  document.querySelector('[data-action="voice-transcribe"]')?.addEventListener('click', async () => {
+    const file = voiceTestFile?.files?.[0];
+    if (!file) {
+      showToast('Selecione um arquivo de áudio primeiro.');
+      return;
+    }
+
+    if (voiceTestResult) voiceTestResult.textContent = 'Transcrevendo…';
+
+    const form = new FormData();
+    form.append('audio', file);
+
+    try {
+      const response = await voiceFetch(`/api/voice/transcribe/${DEMO_TENANT}`, {
+        method: 'POST',
+        body: form
+      });
+      const result = await response.json();
+      if (voiceTestResult) voiceTestResult.textContent = result.text || 'Transcrição vazia.';
+      await refreshVoiceUsage();
+    } catch (error) {
+      if (voiceTestResult) voiceTestResult.textContent = `Erro: ${error.message}`;
+    }
+  });
+
+  document.querySelector('[data-action="voice-tts"]')?.addEventListener('click', async () => {
+    const text = voiceTestResult?.textContent && !voiceTestResult.textContent.startsWith('Erro:')
+      ? voiceTestResult.textContent
+      : 'Olá! Sou o AgendaZap. Tenho horários disponíveis amanhã às quatorze e às dezesseis horas.';
+
+    try {
+      if (voiceTestResult) voiceTestResult.textContent = 'Gerando áudio…';
+      const response = await voiceFetch(`/api/voice/tts/${DEMO_TENANT}`, {
+        method: 'POST',
+        body: JSON.stringify({ text })
+      });
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      if (voiceTestPlayer) {
+        if (voiceTestPlayer.dataset.objectUrl) URL.revokeObjectURL(voiceTestPlayer.dataset.objectUrl);
+        voiceTestPlayer.dataset.objectUrl = url;
+        voiceTestPlayer.src = url;
+        voiceTestPlayer.hidden = false;
+        await voiceTestPlayer.play().catch(() => {});
+      }
+      if (voiceTestResult) voiceTestResult.textContent = text;
+      await refreshVoiceUsage();
+    } catch (error) {
+      if (voiceTestResult) voiceTestResult.textContent = `Erro: ${error.message}`;
+    }
+  });
+
+  initVoiceApi();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
