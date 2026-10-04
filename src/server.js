@@ -117,7 +117,25 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.post('/api/appointments',auth,operator,async(req,res)=>{const data=parse(booking,req.body);res.status(201).json(safeAppointment(await mutate(req,t=>d.book(t,data,{actor:req.account.id,source:'operator',paymentEnabled:providers.integrationStatus().pix}))));});
   router.post('/api/appointments/:id/status',auth,async(req,res)=>{const data=parse(z.object({status:z.enum(['confirmed','checked_in','completed','no_show','cancelled_by_business'])}).strict(),req.body);res.json(safeAppointment(await mutate(req,t=>{const a=d.entity(t,'appointments',req.params.id);if(req.account.role==='professional'&&a.professional_id!==req.account.professional_id)d.fail('Acesso negado',403);return d.transition(t,a,data.status,req.account.id);})));});
   router.post('/api/appointments/:id/reschedule',auth,operator,async(req,res)=>{const data=parse(z.object({starts_at:instant,professional_id:id.optional()}).strict(),req.body);res.json(safeAppointment(await mutate(req,t=>d.reschedule(t,d.entity(t,'appointments',req.params.id),data,req.account.id))));});
-  router.get('/api/customers',auth,operator,(req,res)=>res.json(req.tenant.customers));
+  router.get('/api/customers',auth,operator,(req,res)=>{
+    const paged=req.query.page!==undefined||req.query.page_size!==undefined||req.query.q!==undefined;
+    if(!paged)return res.json(req.tenant.customers);
+    const page=Math.max(1,Number.parseInt(String(req.query.page||'1'),10)||1);
+    const pageSize=Math.min(100,Math.max(5,Number.parseInt(String(req.query.page_size||'20'),10)||20));
+    const q=String(req.query.q||'').trim().toLocaleLowerCase('pt-BR');
+    const filtered=req.tenant.customers
+      .filter(customer=>{
+        if(!q)return true;
+        const haystack=[customer.name,customer.phone,...(customer.tags||[])].join(' ').toLocaleLowerCase('pt-BR');
+        return haystack.includes(q);
+      })
+      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{sensitivity:'base'}));
+    const total=filtered.length;
+    const pages=Math.max(1,Math.ceil(total/pageSize));
+    const safePage=Math.min(page,pages);
+    const start=(safePage-1)*pageSize;
+    res.json({items:filtered.slice(start,start+pageSize),total,page:safePage,page_size:pageSize,pages});
+  });
   router.post('/api/customers',auth,operator,async(req,res)=>{const data=parse(z.object({name:text,phone,consent:z.boolean()}).strict(),req.body);res.status(201).json(await mutate(req,t=>{const c=d.customer(t,data);d.audit(t,req.account.id,'customer.updated',c.id);return c;}));});
   router.patch('/api/customers/:id',auth,operator,async(req,res)=>{const data=parse(z.object({name:text,phone,consent:z.boolean(),tags:z.array(z.string().max(30)).max(20)}).strict(),req.body);res.json(await mutate(req,t=>{const c=d.entity(t,'customers',req.params.id);if(t.customers.some(x=>x.id!==c.id&&x.phone===data.phone))d.fail('Telefone já cadastrado',409);Object.assign(c,data);c.consents.push({at:new Date().toISOString(),purpose:'marketing',channel:'operator',granted:data.consent});d.audit(t,req.account.id,'customer.updated',c.id);return c;}));});
   router.get('/api/customers/:id/export',auth,manager,async(req,res)=>{const result=await mutate(req,t=>{const c=d.entity(t,'customers',req.params.id);d.audit(t,req.account.id,'customer.exported',c.id);return {customer:c,appointments:t.appointments.filter(a=>a.customer_id===c.id).map(safeAppointment),conversations:t.conversations.filter(x=>x.customer_id===c.id)};});res.attachment('cliente.json').json(result);});
