@@ -110,12 +110,12 @@
       modalTitle.textContent = 'Começar com o AgendaZap';
       modalPlan.value = plan;
       document.querySelector('[data-field="service"]')?.classList.add('hidden');
-      document.querySelector('[data-field="plan"]')?.classList.remove('hidden');
+      document.querySelectorAll('[data-field="plan"]').forEach(el => el.classList.remove('hidden'));
     } else {
       modalTitle.textContent = 'Novo agendamento';
       modalPlan.value = '';
       document.querySelector('[data-field="service"]')?.classList.remove('hidden');
-      document.querySelector('[data-field="plan"]')?.classList.add('hidden');
+      document.querySelectorAll('[data-field="plan"]').forEach(el => el.classList.add('hidden'));
     }
     modal.showModal();
     modal.querySelector('input:not([type="hidden"])')?.focus();
