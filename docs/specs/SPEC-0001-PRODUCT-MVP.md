@@ -1,132 +1,162 @@
 # SPEC-0001 — Produto e MVP
 
 **Status:** Draft  
-**Versão:** 0.1.0  
+**Versão:** 0.2.0  
 **Produto:** AgendaZap
 
-## 1. Objetivo
+## 1. Tese
 
-AgendaZap é um SaaS multi-tenant para pequenos negócios de serviços que concentra atendimento, agenda, cobrança de sinal, CRM e automações de relacionamento.
+AgendaZap é um SaaS multi-tenant de **Revenue Autopilot** para negócios de serviços.
 
-O MVP deve permitir que um estabelecimento comece a operar no mesmo dia do cadastro.
+O produto não é apenas uma agenda. Ele deve:
 
-## 2. Problema
+1. converter conversas em agendamentos;
+2. proteger receita com confirmação e sinal;
+3. detectar receita em risco;
+4. tentar recuperar receita automaticamente;
+5. atribuir o resultado financeiro às automações.
 
-Pequenos negócios perdem receita por:
+## 2. Vertical inicial
 
-- demora para responder mensagens;
+O MVP prioriza beleza e serviços pessoais:
+
+- salões;
+- barbearias;
+- manicure;
+- cílios e sobrancelhas;
+- estética não clínica;
+- tatuadores;
+- profissionais autônomos.
+
+O produto deve permanecer configurável para novos verticais, mas não deve sacrificar velocidade de execução tentando resolver todos no primeiro release.
+
+## 3. Problemas
+
+- demora no WhatsApp;
 - agenda fragmentada;
-- faltas sem confirmação;
-- cancelamentos que deixam horários vazios;
-- ausência de cobrança de sinal;
-- clientes antigos sem acompanhamento;
-- inexistência de métricas simples de conversão e receita.
+- no-show;
+- cancelamentos;
+- horários ociosos;
+- falta de cobrança de sinal;
+- clientes que deixam de retornar;
+- recursos compartilhados mal controlados;
+- dificuldade de provar o retorno financeiro de ferramentas digitais.
 
-## 3. Personas
+## 4. Personas
 
-### 3.1 Proprietário
-Precisa visualizar agenda, receita prevista, horários vagos, faltas e clientes recuperáveis.
+### Proprietário
+Quer faturamento, ocupação, receita recuperada e controle.
 
-### 3.2 Profissional
-Precisa visualizar sua agenda e bloquear horários.
+### Profissional
+Quer agenda simples, disponibilidade e comissões claras.
 
-### 3.3 Cliente
-Precisa consultar serviços, escolher horário, confirmar, pagar sinal, reagendar ou cancelar.
+### Cliente
+Quer resolver tudo em poucos passos.
 
-### 3.4 Atendente
-Precisa assumir uma conversa quando a automação não resolver o caso.
+### Atendente
+Quer assumir exceções sem competir com o bot.
 
-## 4. Escopo MVP
+## 5. Escopo MVP
 
-### MUST
+### MUST — P0
 
 - multi-tenant;
-- cadastro de estabelecimento;
-- cadastro de profissionais;
-- cadastro de serviços;
-- duração e preço por serviço;
-- disponibilidade semanal;
-- bloqueio de agenda;
-- consulta de horários livres;
-- criação de agendamento;
+- estabelecimento e unidade;
+- profissionais;
+- serviços;
+- recursos compartilhados;
+- duração, preço e sinal;
+- disponibilidade;
+- bloqueios;
+- consulta de slots;
+- booking hold;
+- agendamento;
 - reagendamento;
 - cancelamento;
-- status do agendamento;
-- cadastro básico de cliente;
-- integração WhatsApp;
-- lembrete automático;
-- dashboard operacional;
-- histórico de atendimento;
-- consentimento e opt-out de mensagens.
-
-### SHOULD
-
-- PIX para sinal;
-- recuperação de clientes;
 - lista de espera;
+- WhatsApp;
+- WhatsApp Flows;
+- lembretes;
+- consentimentos por finalidade;
+- PIX via adapter;
+- recuperação de clientes;
 - preenchimento de cancelamentos;
-- solicitação de avaliação;
-- assistente de IA;
-- handoff para humano.
+- atribuição de receita recuperada;
+- dashboard operacional e de receita;
+- histórico e auditoria;
+- handoff humano.
 
-### COULD
+### SHOULD — P1
 
-- múltiplas unidades;
-- campanhas segmentadas;
-- programa de fidelidade;
+- Google Calendar;
+- importação CSV;
+- pacotes/créditos;
+- comissões;
+- assinatura/membership;
+- reviews;
+- indicação;
+- assistente LLM;
+- campanhas segmentadas.
+
+### COULD — P2
+
+- múltiplas marcas;
+- estoque;
 - cupons;
+- white-label;
 - marketplace;
-- integração com Google Calendar.
+- analytics preditivo.
 
 ### WON'T no MVP
 
-- prontuário médico;
+- prontuário;
 - diagnóstico;
-- armazenamento de dados clínicos sensíveis;
-- folha de pagamento;
-- contabilidade;
-- ERP completo.
+- folha completa;
+- contabilidade completa;
+- ERP genérico;
+- marketplace.
 
-## 5. Fluxo principal
+## 6. Jornada principal
 
 ```text
-Cliente inicia conversa
-        |
-        v
-Identificação / consentimento
-        |
-        v
-Escolha do serviço
-        |
-        v
-Escolha do profissional (opcional)
-        |
-        v
-Horários disponíveis
-        |
-        v
-Reserva temporária
-        |
-        +--> Sinal PIX exigido? -- sim --> pagamento
-        |                               |
-        |                               v
-        |                           confirmação
-        |
-        +--> não ----------------------> confirmação
-        |
-        v
-Lembrete
-        |
-        v
+Lead
+ |
+ v
+WhatsApp / Página pública
+ |
+ v
+Serviço
+ |
+ v
+Profissional + Recursos
+ |
+ v
+Slot disponível
+ |
+ v
+Booking Hold
+ |
+ +--> sinal? --> PIX --> confirmado
+ |                         |
+ +-------------------------+
+ |
+ v
+Lembrete / confirmação
+ |
+ v
 Atendimento
-        |
-        v
-Pós-atendimento / avaliação / retorno
+ |
+ +--> completed --> review + retorno futuro
+ |
+ +--> cancelled --> Revenue Engine
+ |
+ +--> no_show --> Revenue Engine / regra
 ```
 
-## 6. Estados do agendamento
+## 7. Estados do agendamento
 
 - `pending`
+- `hold`
 - `awaiting_payment`
 - `confirmed`
 - `checked_in`
@@ -136,64 +166,70 @@ Pós-atendimento / avaliação / retorno
 - `no_show`
 - `expired`
 
-Toda transição deve ser validada no backend.
+Transições são determinísticas e validadas no backend.
 
-## 7. Dashboard mínimo
+## 8. Dashboard mínimo
 
-Cards:
-
-- agendamentos de hoje;
-- receita prevista do dia;
-- horários vagos;
-- confirmações pendentes;
-- cancelamentos;
-- no-shows;
-- clientes elegíveis para recuperação.
-
-Listas:
-
-- próximos atendimentos;
-- agenda por profissional;
+### Operação
+- agenda do dia;
+- ocupação;
+- horários vazios;
 - pagamentos pendentes;
-- clientes para reativação.
+- confirmações;
+- cancelamentos;
+- lista de espera.
 
-## 8. Métricas
-
-- conversas iniciadas;
-- conversas convertidas em agendamento;
-- taxa de conversão;
-- agendamentos confirmados;
-- taxa de no-show;
+### Receita
 - receita prevista;
-- receita confirmada;
-- clientes recuperados;
-- receita atribuída a recuperação;
-- tempo médio até agendamento.
+- receita recebida;
+- receita recuperada;
+- receita em risco;
+- clientes reativados;
+- slots recuperados;
+- no-shows evitados.
 
-## 9. Requisitos não funcionais
+## 9. Métricas P0
 
-- responsivo;
+- lead -> booking;
+- booking -> confirmed;
+- confirmation -> completed;
+- no-show rate;
+- occupancy rate;
+- cancellation recovery rate;
+- reactivation rate;
+- recovered revenue;
+- revenue per available hour;
+- automation conversion rate;
+- time-to-book.
+
+## 10. Requisitos não funcionais
+
 - PWA;
-- API idempotente em operações críticas;
+- mobile-first;
+- idempotência;
 - isolamento de tenant;
-- timezone por estabelecimento;
+- timezone por unidade;
 - logs estruturados;
-- observabilidade básica;
-- backup automatizado;
+- outbox;
+- retries;
+- backup;
 - operação degradada sem LLM;
-- nenhuma regra crítica pode depender exclusivamente do modelo de IA.
+- regras críticas independentes de IA.
 
-## 10. Critérios de sucesso do MVP
+## 11. Validação comercial
 
-O MVP é considerado comercialmente validado quando:
+O MVP é validado quando:
 
-1. um estabelecimento é configurado em menos de 30 minutos;
-2. um cliente consegue agendar sem intervenção humana;
-3. o sistema impede double booking;
-4. lembrete é enviado automaticamente;
-5. proprietário acompanha agenda e receita em dashboard;
-6. pelo menos uma automação de recuperação de cliente gera retorno mensurável.
+1. tenant é configurado em até 30 minutos;
+2. cliente agenda sozinho;
+3. não existe double booking de profissional nem recurso;
+4. PIX confirma reserva de forma idempotente;
+5. cancelamento dispara recuperação;
+6. cliente inativo pode ser reativado;
+7. dashboard atribui receita recuperada;
+8. existe pelo menos um tenant pagante;
+9. o tenant consegue identificar retorno financeiro do AgendaZap.
 
-## 11. Fora de escopo clínico
+## 12. Restrição clínica
 
-AgendaZap não deve tomar decisões médicas, inferir diagnósticos ou armazenar prontuário no MVP.
+O MVP não armazena prontuário, diagnóstico ou informação clínica desnecessária.
