@@ -1,4 +1,37 @@
 services:
+  voice-service:
+    build:
+      context: ./voice-service
+      dockerfile: Dockerfile
+    image: agendazap-voice:local
+    container_name: agendazap-voice
+    restart: unless-stopped
+    environment:
+      VOICE_PORT: 3001
+      VOICE_DATA_DIR: /app/data
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      VOICE_SHARED_SECRET: ${VOICE_SHARED_SECRET:-}
+      GEMINI_TRANSCRIBE_MODEL: ${GEMINI_TRANSCRIBE_MODEL:-gemini-3.5-transcribe}
+      GEMINI_TRANSCRIBE_LIVE_MODEL: ${GEMINI_TRANSCRIBE_LIVE_MODEL:-gemini-3.5-transcribe-live}
+      GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.8-flash-lite-tts}
+      GEMINI_TTS_PREMIUM_MODEL: ${GEMINI_TTS_PREMIUM_MODEL:-gemini-3.8-flash-tts}
+      GEMINI_LIVE_MODEL: ${GEMINI_LIVE_MODEL:-gemini-3.8-live}
+    volumes:
+      - voice-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   agendazap:
     build:
       context: .
@@ -6,6 +39,9 @@ services:
     image: agendazap:local
     container_name: agendazap
     restart: unless-stopped
+    depends_on:
+      voice-service:
+        condition: service_healthy
     ports:
       - "${AGENDAZAP_PORT:-8080}:80"
     security_opt:
@@ -24,3 +60,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  voice-data:
