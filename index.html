@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="AgendaZap — atendimento, agenda e recuperação de receita pelo WhatsApp." />
+  <title>AgendaZap</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">AZ</div>
+        <div class="brand-copy sidebar-label">
+          <strong>AgendaZap</strong>
+          <span>Revenue Autopilot</span>
+        </div>
+        <button class="icon-btn collapse-btn" id="sidebarToggle" aria-label="Recolher menu" title="Recolher menu">
+          <span id="sidebarToggleIcon">‹</span>
+        </button>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="dashboard" title="Visão geral">
+          <span class="nav-icon">⌂</span><span class="sidebar-label">Visão geral</span>
+        </button>
+        <button class="nav-item" data-view="agenda" title="Agenda">
+          <span class="nav-icon">▦</span><span class="sidebar-label">Agenda</span>
+        </button>
+        <button class="nav-item" data-view="clientes" title="Clientes">
+          <span class="nav-icon">◎</span><span class="sidebar-label">Clientes</span>
+        </button>
+        <button class="nav-item" data-view="automacoes" title="Automações">
+          <span class="nav-icon">⚡</span><span class="sidebar-label">Automações</span>
+        </button>
+        <button class="nav-item" data-view="financeiro" title="Financeiro">
+          <span class="nav-icon">$</span><span class="sidebar-label">Financeiro</span>
+        </button>
+        <button class="nav-item" data-view="planos" title="Planos">
+          <span class="nav-icon">◇</span><span class="sidebar-label">Planos</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="tenant-pill">
+          <span class="avatar">JS</span>
+          <span class="sidebar-label tenant-copy"><strong>Studio Demo</strong><small>Brasília • DF</small></span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">AGENDAZAP</p>
+          <h1 id="pageTitle">Visão geral</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema claro e escuro">
+            <span id="themeIcon">☾</span>
+            <span id="themeLabel">Escuro</span>
+          </button>
+          <button class="primary-btn">+ Novo agendamento</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-dashboard">
+        <div class="hero-card">
+          <div>
+            <p class="eyebrow">REVENUE AUTOPILOT</p>
+            <h2>Seu negócio trabalhou. O AgendaZap também.</h2>
+            <p class="muted">Atendimento, agendamento e recuperação automática de receita pelo WhatsApp.</p>
+          </div>
+          <div class="recovered-box">
+            <span>Receita recuperada no mês</span>
+            <strong>R$ 4.260</strong>
+            <small>+18,4% vs. mês anterior</small>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <article class="metric-card"><span>Receita prevista</span><strong>R$ 28.400</strong><small>+8,2% no mês</small></article>
+          <article class="metric-card"><span>Receita recebida</span><strong>R$ 23.190</strong><small>81,7% da previsão</small></article>
+          <article class="metric-card"><span>Ocupação</span><strong>82%</strong><small>+6 p.p. no mês</small></article>
+          <article class="metric-card"><span>No-show</span><strong>4,2%</strong><small>−1,8 p.p. no mês</small></article>
+        </div>
+
+        <div class="two-col">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">HOJE</p><h3>Próximos atendimentos</h3></div><button class="text-btn">Ver agenda</button></div>
+            <div class="appointment"><time>09:30</time><div><strong>Marina Souza</strong><span>Corte + escova • Ana</span></div><span class="status confirmed">Confirmado</span></div>
+            <div class="appointment"><time>10:45</time><div><strong>Carla Lima</strong><span>Manicure • Júlia</span></div><span class="status paid">Sinal pago</span></div>
+            <div class="appointment"><time>12:00</time><div><strong>Paula Martins</strong><span>Coloração • Ana</span></div><span class="status waiting">Aguardando</span></div>
+            <div class="appointment"><time>14:30</time><div><strong>Camila Rocha</strong><span>Sobrancelha • Bia</span></div><span class="status recovered">Recuperado</span></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">AUTOMAÇÃO</p><h3>De onde veio a receita recuperada</h3></div></div>
+            <div class="recovery-row"><span>Clientes reativados</span><strong>R$ 2.100</strong><div class="bar"><i style="width:49%"></i></div></div>
+            <div class="recovery-row"><span>Cancelamentos preenchidos</span><strong>R$ 1.340</strong><div class="bar"><i style="width:31%"></i></div></div>
+            <div class="recovery-row"><span>No-shows evitados</span><strong>R$ 820</strong><div class="bar"><i style="width:20%"></i></div></div>
+            <div class="automation-note"><span class="pulse"></span><div><strong>Revenue Engine ativo</strong><small>3 oportunidades encontradas nos últimos 20 min.</small></div></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-planos">
+        <div class="section-heading">
+          <div><p class="eyebrow">PLANOS</p><h2>Preço simples, valor visível.</h2><p class="muted">Implantação para colocar o estabelecimento no ar e mensalidade para manter o AgendaZap operando.</p></div>
+        </div>
+        <div class="pricing-grid">
+          <article class="price-card">
+            <p class="plan-kicker">CLIENTE FUNDADOR</p><h3>Fundador</h3>
+            <div class="price"><span>R$</span><strong>149</strong><small>/mês</small></div>
+            <p class="setup-price">Implantação: <strong>R$ 297</strong></p>
+            <ul><li>Agenda e serviços</li><li>Atendimento pelo WhatsApp</li><li>Lembretes automáticos</li><li>Dashboard básico</li></ul>
+            <button class="secondary-btn">Plano fundador</button>
+          </article>
+
+          <article class="price-card featured">
+            <div class="recommended">MAIS RECOMENDADO</div>
+            <p class="plan-kicker">AGENDAZAP</p><h3>Profissional</h3>
+            <div class="price"><span>R$</span><strong>249</strong><small>/mês</small></div>
+            <p class="setup-price">Implantação: <strong>R$ 597</strong></p>
+            <ul><li>Tudo do Fundador</li><li>PIX e confirmação de sinal</li><li>Lista de espera</li><li>Recuperação de cancelamentos</li><li>Clientes inativos</li><li>Receita recuperada no dashboard</li></ul>
+            <button class="primary-btn full">Começar por R$ 597</button>
+          </article>
+
+          <article class="price-card">
+            <p class="plan-kicker">OPERAÇÃO AVANÇADA</p><h3>Pro</h3>
+            <div class="price"><span>R$</span><strong>397</strong><small>/mês</small></div>
+            <p class="setup-price">Implantação: <strong>R$ 997</strong></p>
+            <ul><li>Tudo do Profissional</li><li>Revenue Engine avançado</li><li>Pacotes e créditos</li><li>Recursos compartilhados</li><li>Analytics e automações avançadas</li><li>Suporte prioritário</li></ul>
+            <button class="secondary-btn">Escolher Pro</button>
+          </article>
+        </div>
+        <div class="pricing-note"><strong>Oferta principal:</strong> R$ 597 de implantação + R$ 249/mês. Uma operação com ticket médio de R$ 100 precisa recuperar apenas 3 clientes no mês para o software se pagar.</div>
+      </section>
+
+      <section class="view placeholder" id="view-agenda"><h2>Agenda</h2><p>Motor visual da agenda preparado para integração com slots, profissionais e recursos.</p></section>
+      <section class="view placeholder" id="view-clientes"><h2>Clientes</h2><p>CRM de clientes, consentimentos e histórico de atendimento.</p></section>
+      <section class="view placeholder" id="view-automacoes"><h2>Automações</h2><p>Revenue Engine, reativação de clientes, lista de espera e recuperação de cancelamentos.</p></section>
+      <section class="view placeholder" id="view-financeiro"><h2>Financeiro</h2><p>PIX, sinal, pagamentos, receita prevista, recebida e recuperada.</p></section>
+    </main>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
