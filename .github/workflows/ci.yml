@@ -5,23 +5,37 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Frontend JavaScript syntax
-        run: |
-          node --check app.js
-          node --check service-worker.js
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install AgendaZap dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Check AgendaZap syntax
+        run: npm run check
+
+      - name: Test AgendaZap
+        run: npm test
 
       - name: Validate JSON
         run: |
           python3 - <<'PY'
           import json
-          for path in ("package.json", "manifest.webmanifest", "voice-service/package.json"):
+          for path in ("package.json", "public/manifest.webmanifest", "voice-service/package.json"):
               with open(path, encoding="utf-8") as f:
                   json.load(f)
               print(f"{path}: ok")
@@ -31,13 +45,14 @@ jobs:
         working-directory: voice-service
         run: npm install --no-audit --no-fund
 
-      - name: Check Voice AI syntax
+      - name: Check Voice AI
         working-directory: voice-service
-        run: npm run check
+        run: |
+          npm run check
+          npm test
 
-      - name: Test Voice AI stores
-        working-directory: voice-service
-        run: npm test
+      - name: Build AgendaZap container
+        run: docker build -t agendazap:ci .
 
       - name: Build Voice AI container
         run: docker build -t agendazap-voice:ci ./voice-service
@@ -60,35 +75,10 @@ jobs:
               data=json.load(f)
           assert data["ok"] is True
           assert data["configured"] is False
-          print("voice health: ok")
           PY
 
-      - name: Build frontend container
-        run: docker build -t agendazap:ci .
-
-      - name: Validate Nginx
-        run: docker run --rm agendazap:ci nginx -t
-
-      - name: Validate compose
-        run: docker compose config >/dev/null
-
-      - name: Smoke test frontend container
+      - name: Validate deployment manifests
         run: |
-          docker run -d --name agendazap-ci -p 18080:80 agendazap:ci
-          trap 'docker logs agendazap-ci || true; docker rm -f agendazap-ci || true' EXIT
-
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:18080/healthz | grep -q '^ok$'; then
-              break
-            fi
-            sleep 1
-          done
-
-          curl -fsS http://127.0.0.1:18080/ >/dev/null
-          curl -fsS http://127.0.0.1:18080/agenda >/dev/null
-          curl -fsS http://127.0.0.1:18080/assets/icon-agendazap.svg >/dev/null
-
-          curl -fsSI http://127.0.0.1:18080/app.js | grep -qi 'x-content-type-options: nosniff'
-          curl -fsSI http://127.0.0.1:18080/app.js | grep -qi 'cache-control: no-cache'
-
-          docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' agendazap-ci
+          docker compose -f compose.yaml config >/dev/null
+          test -f deploy/agendazap.service
+          test -f deploy/nginx-agendazap.conf

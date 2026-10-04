@@ -13,6 +13,9 @@ Ativos oficiais:
 - `assets/logo-agendazap-full.svg` — logo completa com tagline;
 - `assets/logo-agendazap-horizontal.svg` — wordmark horizontal;
 - `assets/icon-agendazap.svg` — ícone para sidebar, favicon e PWA.
+- `assets/brand/agendazap-logo.png` — versão raster da marca completa;
+- `assets/brand/agendazap-icon.png` — ícone raster para materiais externos;
+- `assets/brand/agendazap-brand-board.png` — prancha oficial de identidade visual.
 
 Paleta principal: `#25D366`, `#0B8F4B`, `#101722`, `#64748B`.
 
