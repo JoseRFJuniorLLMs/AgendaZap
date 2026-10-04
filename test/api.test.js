@@ -17,6 +17,12 @@ test('end-to-end: onboarding, public booking, tenant isolation, CSRF and RBAC',a
   r=await request(`/public/studio-alice/availability?service_id=${service.id}&date=${date}`);assert.equal(r.status,200);assert(r.data.length>0);const slot=r.data[0];
   const payload={name:'Marina',phone:'+5511888887777',consent:false,service_id:service.id,professional_id:professional.id,starts_at:slot.starts_at,idempotency_key:uid()};
   r=await request('/public/studio-alice/appointments',{method:'POST',body:payload});assert.equal(r.status,201);const booking=r.data;
+  const customerPage=await request('/customers?page=1&page_size=20&q=Marina',{session:alice});
+  assert.equal(customerPage.status,200);
+  assert.equal(customerPage.data.total,1);
+  assert.equal(customerPage.data.page,1);
+  assert.equal(customerPage.data.pages,1);
+  assert.equal(customerPage.data.items[0].name,'Marina');
   assert.equal((await request('/public/studio-alice/appointments',{method:'POST',body:payload})).data.appointment.id,booking.appointment.id);
   assert.equal((await request('/public/studio-alice/appointments',{method:'POST',body:{...payload,idempotency_key:uid()}})).status,409);
   assert.equal((await request(`/services/${service.id}`,{method:'PATCH',session:bob,body:service})).status,400); // unknown id field rejected before access
