@@ -1,6 +1,20 @@
+<p align="center">
+  <img src="assets/logo-agendazap-full.svg" alt="AgendaZap — Revenue Autopilot" width="520" />
+</p>
+
 # AgendaZap
 
 **AgendaZap** é um SaaS de atendimento, agendamento e **recuperação automática de receita** via WhatsApp para pequenos negócios de serviços.
+
+## Identidade visual
+
+Ativos oficiais:
+
+- `assets/logo-agendazap-full.svg` — logo completa com tagline;
+- `assets/logo-agendazap-horizontal.svg` — wordmark horizontal;
+- `assets/icon-agendazap.svg` — ícone para sidebar, favicon e PWA.
+
+Paleta principal: `#25D366`, `#0B8F4B`, `#101722`, `#64748B`.
 
 > **Tese do produto:** o AgendaZap não deve ser apenas mais uma agenda com chatbot. Ele deve identificar receita perdida e tentar recuperá-la automaticamente.
 
@@ -117,6 +131,7 @@ Stack inicial:
 | SPEC-0010 | [Resources & Packages](docs/specs/SPEC-0010-RESOURCES-PACKAGES.md) | recursos, pacotes, créditos e memberships |
 | SPEC-0011 | [Reliability](docs/specs/SPEC-0011-RELIABILITY.md) | outbox, retry, idempotência e reconciliação |
 | SPEC-0012 | [Growth Analytics](docs/specs/SPEC-0012-GROWTH-ANALYTICS.md) | funil, cohort, LTV, reviews e indicação |
+| SPEC-0013 | [Frontend Hardening & UX](docs/specs/SPEC-0013-FRONTEND-HARDENING-UX.md) | branding, cache, deploy, acessibilidade, routing e quality gates |
 
 ## Princípios
 
