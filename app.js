@@ -13,6 +13,8 @@
   const modalForm = document.getElementById('modalForm');
   const modalPlan = document.getElementById('modalPlan');
   const toast = document.getElementById('toast');
+  const mobileMore = document.querySelector('[data-action="mobile-more"]');
+  const mobileMoreMenu = document.getElementById('mobileMoreMenu');
 
   const routes = {
     dashboard: '/',
@@ -98,7 +100,20 @@
 
   navItems.forEach(item => item.addEventListener('click', () => {
     renderView(item.dataset.view, true);
+    if (mobileMoreMenu) mobileMoreMenu.hidden = true;
   }));
+
+  mobileMore?.addEventListener('click', () => {
+    if (!mobileMoreMenu) return;
+    mobileMoreMenu.hidden = !mobileMoreMenu.hidden;
+  });
+
+  document.addEventListener('click', event => {
+    if (!mobileMoreMenu || mobileMoreMenu.hidden) return;
+    const target = event.target;
+    if (mobileMore?.contains(target) || mobileMoreMenu.contains(target)) return;
+    mobileMoreMenu.hidden = true;
+  });
 
   window.addEventListener('popstate', () => renderView(viewFromPath(location.pathname), false));
   renderView(viewFromPath(location.pathname), false);
