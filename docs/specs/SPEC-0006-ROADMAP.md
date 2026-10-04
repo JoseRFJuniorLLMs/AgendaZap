@@ -1,142 +1,138 @@
 # SPEC-0006 — Roadmap
 
 **Status:** Draft  
-**Versão:** 0.1.0
+**Versão:** 0.2.0
 
-## Objetivo
+## Princípio
 
-Chegar a um MVP demonstrável e vendável com o menor número de dependências possível.
+Não construir sete fases antes de vender. O roadmap deve reduzir o tempo até o primeiro tenant pagante.
 
 ## Fase 0 — Fundação
 
-Entregas:
-
-- estrutura do repositório;
-- configuração de ambiente;
+- monorepo;
 - Docker;
-- banco;
+- PostgreSQL;
+- Redis;
 - migrations;
 - CI;
 - lint;
 - testes;
-- documentação de setup.
+- secret scanning;
+- observabilidade;
+- outbox base.
 
-**Definition of Done:** projeto sobe localmente com um comando documentado.
+**DoD:** sobe localmente e em ambiente de demonstração.
 
-## Fase 1 — Core comercial
-
-Entregas:
+## Fase 1 — Core de agenda
 
 - tenant;
-- autenticação;
-- profissionais;
-- serviços;
-- disponibilidade;
-- bloqueios;
+- location;
+- auth/RBAC;
+- professionals;
+- services;
+- resources;
+- availability;
+- holds;
 - appointments;
-- dashboard diário.
+- dashboard.
 
-**Definition of Done:** operador consegue cadastrar negócio e criar agendamento sem WhatsApp.
+**DoD:** não há double booking de profissional/recurso.
 
-## Fase 2 — Página pública
+## Fase 2 — Jornada comercial
 
-Entregas:
+- página pública;
+- mobile-first;
+- WhatsApp webhook;
+- WhatsApp Flows;
+- booking;
+- cancel;
+- reschedule;
+- waitlist;
+- handoff.
 
-- slug público;
-- catálogo;
-- horários;
-- fluxo mobile;
-- criação de agendamento.
+**DoD:** cliente agenda sem atendente.
 
-**Definition of Done:** cliente externo agenda sozinho.
-
-## Fase 3 — WhatsApp
-
-Entregas:
-
-- webhook;
-- identificação de cliente;
-- menu/fluxo determinístico;
-- consulta de serviço;
-- consulta de disponibilidade;
-- agendamento;
-- reagendamento;
-- cancelamento.
-
-**Definition of Done:** jornada completa pelo WhatsApp sem IA.
-
-## Fase 4 — PIX
-
-Entregas:
+## Fase 3 — PIX + Revenue Engine
 
 - payment adapter;
-- cobrança;
-- QR/copia e cola;
-- webhook;
-- hold com TTL;
-- confirmação automática.
+- hold TTL;
+- PIX;
+- reminders;
+- cancellation recovery;
+- reactivation;
+- revenue attribution;
+- recovered revenue dashboard.
 
-**Definition of Done:** sinal pago confirma reserva de forma idempotente.
+**DoD:** sistema demonstra dinheiro recuperado.
 
-## Fase 5 — Automações
+## Fase 4 — Primeiro tenant pagante
 
-Entregas:
+- onboarding;
+- import CSV;
+- demo tenant;
+- plano inicial;
+- subscription;
+- usage metering;
+- termos;
+- privacidade;
+- suporte operacional.
 
-- lembretes;
-- confirmação;
-- no-show;
-- pós-atendimento;
-- recuperação de cliente;
-- lista de espera;
-- preenchimento de cancelamento.
+**DoD:** pelo menos um tenant real pagando.
 
-**Definition of Done:** sistema executa automações e mede receita atribuída.
+## Fase 5 — Retenção e monetização
 
-## Fase 6 — IA
+- packages;
+- credits;
+- memberships;
+- commissions;
+- Google Calendar;
+- reviews;
+- referral loop.
 
-Entregas:
+## Fase 6 — IA avançada
 
 - intent classification;
 - entity extraction;
 - tool calling;
-- fallback;
-- handoff;
-- observabilidade de custo e latência.
+- semantic FAQ;
+- next-best-action;
+- cost observability;
+- provider fallback.
 
-**Definition of Done:** IA melhora linguagem/roteamento sem controlar regras críticas.
+IA entra depois do core determinístico provar conversão.
 
-## Fase 7 — Comercialização
+## Fase 7 — Escala
 
-Entregas:
-
-- onboarding simplificado;
-- plano e assinatura;
-- landing page;
-- demo tenant;
-- exportação básica;
-- termos e privacidade;
-- métricas SaaS.
-
-## Backlog pós-MVP
-
-- Google Calendar;
 - múltiplas unidades;
-- campanhas segmentadas;
-- cupons;
-- fidelidade;
-- integrações contábeis;
-- analytics avançado;
+- planos;
+- quotas;
 - white-label;
-- marketplace.
+- vertical profiles;
+- advanced analytics;
+- predictive occupancy.
 
-## Critério de prioridade
+## Gates
 
-Cada nova feature deve responder pelo menos a uma pergunta:
+Feature só entra antes do PMF se:
 
-1. aumenta conversão?
-2. reduz faltas?
-3. recupera receita?
-4. reduz trabalho manual?
-5. aumenta retenção do estabelecimento?
+1. aumenta conversão;
+2. reduz no-show;
+3. recupera receita;
+4. reduz trabalho;
+5. melhora retenção;
+6. reduz custo de onboarding;
+7. melhora margem.
 
-Se não responder a nenhuma, não entra antes da validação comercial.
+## Indicador North Star
+
+**Recovered Revenue per Active Tenant (RRAT)**
+
+Indicadores auxiliares:
+
+- occupancy;
+- no-show;
+- reactivation;
+- cancellation recovery;
+- booking conversion;
+- MRR;
+- gross margin per tenant.
