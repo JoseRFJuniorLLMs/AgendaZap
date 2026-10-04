@@ -162,8 +162,14 @@
       <button data-view="dashboard"><span>⌂</span><small>Início</small></button>
       <button data-view="agenda"><span>▦</span><small>Agenda</small></button>
       <button data-view="clientes"><span>◎</span><small>Clientes</small></button>
-      <button data-view="planos"><span>◇</span><small>Planos</small></button>
+      <button type="button" data-action="mobile-more"><span>⋯</span><small>Mais</small></button>
     </nav>
+
+    <div class="mobile-more-menu" id="mobileMoreMenu" hidden>
+      <button data-view="automacoes">⚡ Automações</button>
+      <button data-view="financeiro">$ Financeiro</button>
+      <button data-view="planos">◇ Planos</button>
+    </div>
 
     <dialog class="action-modal" id="actionModal">
       <form method="dialog" class="modal-card" id="modalForm">
