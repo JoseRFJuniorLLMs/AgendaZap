@@ -1,6 +1,6 @@
 const root=document.querySelector('#app'),dialog=document.querySelector('#modal');
 const base=new URL('.',location.href).pathname.replace(/\/$/,'');
-let session=null,pageData={},selectedConversation=null,bookingState={},busy=false;
+let session=null,pageData={},selectedConversation=null,bookingState={},busy=false,customerSearchTimer=null;
 const e=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((x||0)/100);
 const localDate=(tz=session?.tenant.timezone||'America/Sao_Paulo')=>new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -64,7 +64,15 @@ async function loadPage(page) {
     [pageData.professionals,pageData.services]=await Promise.all([api('/professionals'),api('/services')]);shell(page,heading('Quem faz acontecer','Uma equipe; muitos talentos.','Defina os serviços e a semana de trabalho de cada profissional.',['owner','manager'].includes(session.user.role)?button(icon('plus')+' Novo profissional','professional','','primary'):'')+`<div class="grid three">${pageData.professionals.length?pageData.professionals.map(p=>`<article class="card"><div class="flex between"><div class="avatar">${e(initials(p.name))}</div>${pill(p.active?'confirmed':'cancelled')}</div><h2>${e(p.name)}</h2><p class="note">${p.service_ids.map(id=>e(nameOf(pageData.services,id))).join(' · ')||'Sem serviços vinculados'}</p><p class="note">${p.availability.length} períodos na semana</p>${['owner','manager'].includes(session.user.role)?button('Editar profissional','professional',`data-id="${p.id}"`,'small'):''}</article>`).join(''):empty('A primeira pessoa da equipe.','Cadastre um profissional e seus horários.')}</div>`);
   }
   if(page==='customers') {
-    pageData.customers=await api('/customers');shell(page,heading('Relacionamentos','Clientes que fazem parte.','Histórico, contato e preferências para um atendimento próximo.',button(icon('plus')+' Novo cliente','customer','','primary'))+`<div class="card"><div class="section-heading"><h2>${pageData.customers.length} clientes</h2><input id="customer-search" class="search" placeholder="Buscar por nome ou telefone" aria-label="Buscar cliente"></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Último atendimento</th><th>Marketing</th><th></th></tr></thead><tbody id="customer-rows">${customerRows(pageData.customers)}</tbody></table></div>${pageData.customers.length?'':empty('Conheça seu próximo cliente.','Os agendamentos também criam o cadastro automaticamente.')}</div>`);
+    const customerPage=pageData.customerPage||1;
+    const customerQuery=pageData.customerQuery||'';
+    const result=await api(`/customers?page=${customerPage}&page_size=20&q=${encodeURIComponent(customerQuery)}`);
+    pageData.customers=result.items;
+    pageData.customerPage=result.page;
+    pageData.customerPages=result.pages;
+    pageData.customerTotal=result.total;
+    shell(page,heading('Relacionamentos','Clientes que fazem parte.','Histórico, contato e preferências para um atendimento próximo.',button(icon('plus')+' Novo cliente','customer','','primary'))+`<div class="card"><div class="section-heading"><h2>${result.total} ${result.total===1?'cliente':'clientes'}</h2><input id="customer-search" class="search" value="${e(customerQuery)}" placeholder="Buscar por nome, telefone ou tag" aria-label="Buscar cliente"></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Último atendimento</th><th>Marketing</th><th></th></tr></thead><tbody id="customer-rows">${customerRows(result.items)}</tbody></table></div>${result.items.length?'':empty(customerQuery?'Nenhum cliente encontrado.':'Conheça seu próximo cliente.',customerQuery?'Tente outro nome, telefone ou tag.':'Os agendamentos também criam o cadastro automaticamente.')}<div class="pager crm-pager"><span class="note">Página ${result.page} de ${result.pages} · ${result.total} no total</span><div class="flex">${button('Anterior','customer-prev',result.page<=1?'disabled':'','small')}${button('Próxima','customer-next',result.page>=result.pages?'disabled':'','small')}</div></div></div>`);
+    if(customerQuery)setTimeout(()=>{const input=document.querySelector('#customer-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}},0);
   }
   if(page==='payments') {
     pageData.payments=await api('/payments');shell(page,heading('Financeiro','Cada sinal; uma confirmação.','Pagamentos reconciliados pelo provedor; estornos feitos com auditoria.')+`<div class="card"><div class="table-wrap"><table><thead><tr><th>Referência</th><th>Criado em</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${pageData.payments.map(p=>`<tr><td>${e(p.id)}${p.needs_review?'<div class="sub error">Revisão manual: pagamento após prazo</div>':''}</td><td>${dateTime(p.created_at)}</td><td>${money(p.amount_cents)}</td><td>${pill(p.status)}</td><td>${p.status==='paid'&&session.user.role==='owner'?button('Estornar','refund',`data-id="${p.id}"`,'small danger'):''}</td></tr>`).join('')}</tbody></table></div>${pageData.payments.length?'':empty('Nenhum sinal registrado.','Configure o PIX e defina o sinal nos serviços para começar.')}</div>`);
@@ -159,6 +167,8 @@ async function action(action,node) {
   if(action==='reload')return route();
   if(action==='menu'){setMobileMenu(!document.querySelector('.sidebar')?.classList.contains('open'));return;}
   if(action==='menu-close'){setMobileMenu(false);return;}
+  if(action==='customer-prev'){pageData.customerPage=Math.max(1,(pageData.customerPage||1)-1);return loadPage('customers');}
+  if(action==='customer-next'){pageData.customerPage=Math.min(pageData.customerPages||1,(pageData.customerPage||1)+1);return loadPage('customers');}
   if(action==='voice-save'){
     const tenant=encodeURIComponent(session.tenant.id);
     const responseMode=document.querySelector('#voice-mode')?.value||'mirror_customer';
@@ -256,7 +266,7 @@ async function submit(form) {
 document.addEventListener('click',async event=>{const node=event.target.closest('[data-action]');if(!node||node.disabled)return;event.preventDefault();node.disabled=true;try{await action(node.dataset.action,node);}catch(error){toast(error.message);}finally{node.disabled=false;}});
 document.addEventListener('submit',async event=>{const form=event.target.closest('[data-form]');if(!form)return;event.preventDefault();if(busy)return;busy=true;const btn=form.querySelector('[type=submit]');if(btn)btn.disabled=true;try{await submit(form);}catch(error){const node=form.querySelector('[data-error]');if(node)node.textContent=error.message;else toast(error.message);}finally{busy=false;if(btn)btn.disabled=false;}});
 document.addEventListener('change',event=>{if(event.target.id==='dashboard-date'){pageData.date=event.target.value;route();}});
-document.addEventListener('input',event=>{if(event.target.id==='customer-search'){const q=event.target.value.toLowerCase();document.querySelector('#customer-rows').innerHTML=customerRows(pageData.customers.filter(c=>(c.name+' '+c.phone).toLowerCase().includes(q)));}});
+document.addEventListener('input',event=>{if(event.target.id==='customer-search'){pageData.customerQuery=event.target.value;pageData.customerPage=1;clearTimeout(customerSearchTimer);customerSearchTimer=setTimeout(()=>loadPage('customers'),300);}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(dialog?.open)dialog.close();setMobileMenu(false);}});
 window.addEventListener('hashchange',route);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
