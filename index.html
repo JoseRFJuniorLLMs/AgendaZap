@@ -136,7 +136,7 @@
             <p class="plan-kicker">AGENDAZAP</p><h3>Profissional</h3>
             <div class="price"><span>R$</span><strong>249</strong><small>/mês</small></div>
             <p class="setup-price">Implantação: <strong>R$ 597</strong></p>
-            <ul><li>Tudo do Fundador</li><li>PIX e confirmação de sinal</li><li>Lista de espera</li><li>Recuperação de cancelamentos</li><li>Clientes inativos</li><li>Receita recuperada no dashboard</li></ul>
+            <ul><li>Tudo do Fundador</li><li>PIX e confirmação de sinal</li><li>Lista de espera</li><li>Recuperação de cancelamentos</li><li>Clientes inativos</li><li>Franquia de voz com IA</li><li>Receita recuperada no dashboard</li></ul>
             <button class="primary-btn full" data-plan="Profissional">Começar por R$ 597</button>
           </article>
 
@@ -144,7 +144,7 @@
             <p class="plan-kicker">OPERAÇÃO AVANÇADA</p><h3>Pro</h3>
             <div class="price"><span>R$</span><strong>397</strong><small>/mês</small></div>
             <p class="setup-price">Implantação: <strong>R$ 997</strong></p>
-            <ul><li>Tudo do Profissional</li><li>Revenue Engine avançado</li><li>Pacotes e créditos</li><li>Recursos compartilhados</li><li>Analytics e automações avançadas</li><li>Suporte prioritário</li></ul>
+            <ul><li>Tudo do Profissional</li><li>Revenue Engine avançado</li><li>Atendimento por voz com IA</li><li>TTS premium e métricas de voz</li><li>Pacotes e créditos</li><li>Recursos compartilhados</li><li>Analytics e automações avançadas</li><li>Suporte prioritário</li></ul>
             <button class="secondary-btn" data-plan="Pro">Escolher Pro</button>
           </article>
         </div>
@@ -153,7 +153,60 @@
 
       <section class="view placeholder" id="view-agenda"><h2>Agenda</h2><p>Motor visual da agenda preparado para integração com slots, profissionais e recursos.</p></section>
       <section class="view placeholder" id="view-clientes"><h2>Clientes</h2><p>CRM de clientes, consentimentos e histórico de atendimento.</p></section>
-      <section class="view placeholder" id="view-automacoes"><h2>Automações</h2><p>Revenue Engine, reativação de clientes, lista de espera e recuperação de cancelamentos.</p></section>
+      <section class="view" id="view-automacoes">
+        <div class="section-heading">
+          <p class="eyebrow">AUTOMAÇÕES</p>
+          <h2>Revenue Engine + Voice AI</h2>
+          <p class="muted">Automação comercial com respostas em texto e voz, sem dar ao modelo autoridade sobre agenda ou pagamentos.</p>
+        </div>
+
+        <div class="two-col">
+          <article class="panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">VOICE AI</p><h3>Modo de resposta</h3></div>
+              <span class="status confirmed">Gemini</span>
+            </div>
+
+            <div class="voice-models">
+              <div><span>Entrada de voz</span><strong>gemini-3.5-transcribe-live</strong></div>
+              <div><span>Saída de voz</span><strong>gemini-3.8-flash-lite-tts</strong></div>
+              <div><span>Live premium</span><strong>gemini-3.8-live</strong></div>
+            </div>
+
+            <fieldset class="voice-options">
+              <legend>Como o AgendaZap deve responder?</legend>
+              <label><input type="radio" name="voiceMode" value="text_only"> <span><strong>Somente texto</strong><small>Mais econômico e universal.</small></span></label>
+              <label><input type="radio" name="voiceMode" value="text_and_audio"> <span><strong>Texto + áudio</strong><small>Envia a resposta escrita e a versão falada.</small></span></label>
+              <label><input type="radio" name="voiceMode" value="mirror_customer"> <span><strong>Acompanhar o cliente</strong><small>Texto para texto; áudio recebe texto + áudio.</small></span></label>
+              <label><input type="radio" name="voiceMode" value="audio_only"> <span><strong>Somente áudio</strong><small>Texto canônico continua registrado internamente.</small></span></label>
+            </fieldset>
+
+            <div class="voice-setting-row">
+              <div><strong>Vocabulário personalizado</strong><small>Melhora termos como balayage, barboterapia e nomes dos profissionais.</small></div>
+              <button class="secondary-btn" type="button" data-action="voice-vocabulary">Configurar</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">FLUXO</p><h3>Resposta canônica</h3></div></div>
+            <div class="voice-flow">
+              <div><b>1</b><span>🎙️ Cliente envia áudio</span></div>
+              <i>↓</i>
+              <div><b>2</b><span>Transcrição vira texto canônico</span></div>
+              <i>↓</i>
+              <div><b>3</b><span>AgendaZap consulta agenda/tools</span></div>
+              <i>↓</i>
+              <div><b>4</b><span>Resposta é criada primeiro em texto</span></div>
+              <i>↓</i>
+              <div><b>5</b><span>🔊 TTS vocaliza exatamente essa resposta</span></div>
+            </div>
+            <div class="automation-note">
+              <span class="pulse"></span>
+              <div><strong>Fallback seguro</strong><small>Se TTS falhar, a resposta em texto continua normalmente.</small></div>
+            </div>
+          </article>
+        </div>
+      </section>
       <section class="view placeholder" id="view-financeiro"><h2>Financeiro</h2><p>PIX, sinal, pagamentos, receita prevista, recebida e recuperada.</p></section>
     </main>
   </div>
