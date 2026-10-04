@@ -179,8 +179,27 @@ Stack inicial:
 - onboarding deve ser rápido;
 - tudo que aumenta complexidade deve justificar conversão, receita, retenção ou redução de trabalho.
 
+## Deploy automático da VM
+
+A produção em `https://35.247.217.66.nip.io/AgendaZap/` é reconciliada automaticamente com o branch `main`.
+
+A VM `memoria-vm-2` verifica o SHA remoto a cada 30 segundos. Quando encontra um commit novo, ela:
+
+1. atualiza o clone Git;
+2. executa `npm ci`, validação de sintaxe e a suíte completa;
+3. preserva dados e configuração em `/etc/agendazap.env`;
+4. reconstrói o Voice AI isolado na porta local `8794`;
+5. atualiza systemd e o snippet Nginx;
+6. valida PostgreSQL, API e Voice AI;
+7. grava o SHA implantado;
+8. executa rollback quando o healthcheck falha.
+
+O GitHub Actions continua sendo o quality gate do repositório; a VM realiza a reconciliação de produção sem armazenar uma chave SSH permanente no GitHub.
+
 ## Status
 
-**Especificação v0.2.0 — pós-auditoria recursiva.**
+**AgendaZap v1.0.0 — backend, PostgreSQL, frontend, Voice AI layer, testes e deploy automático versionados.**
 
-Próximo marco: **core de agenda + Revenue Engine + WhatsApp Flows + primeiro tenant pagante**.
+Health de produção: `/AgendaZap/api/health`.
+
+O Voice AI requer `GEMINI_API_KEY` configurada de forma segura na VM para habilitar STT/TTS real.
