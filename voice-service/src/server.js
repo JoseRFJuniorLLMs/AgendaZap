@@ -324,14 +324,26 @@ wss.on('connection', (client, req, context) => {
   upstream.on('message', raw => {
     try {
       const message = JSON.parse(raw.toString());
-      const transcript = message.serverContent?.inputTranscription?.text;
+      const interim = message.serverContent?.interimInputTranscription?.text;
+      const finalTranscript = message.serverContent?.inputTranscription?.text;
 
-      if (transcript) {
+      if (interim) {
         client.send(JSON.stringify({
           type: 'transcript',
-          text: transcript
+          final: false,
+          text: interim
         }));
-      } else if (message.setupComplete) {
+      }
+
+      if (finalTranscript) {
+        client.send(JSON.stringify({
+          type: 'transcript',
+          final: true,
+          text: finalTranscript
+        }));
+      }
+
+      if (message.setupComplete) {
         client.send(JSON.stringify({ type: 'setup_complete' }));
       }
     } catch {}
