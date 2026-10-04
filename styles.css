@@ -6,8 +6,8 @@
   --text: #111827;
   --muted: #6b7280;
   --border: #e5e7eb;
-  --accent: #16a36a;
-  --accent-strong: #0e8555;
+  --accent: #25d366;
+  --accent-strong: #0b8f4b;
   --accent-soft: #e8f7f0;
   --sidebar: #ffffff;
   --sidebar-text: #344054;
@@ -18,7 +18,7 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0d1117;
+  --bg: #0b1220;
   --surface: #151b23;
   --surface-2: #1c2430;
   --text: #f5f7fa;
@@ -44,10 +44,11 @@ button { font: inherit; }
 .app-shell.sidebar-collapsed .main-content { margin-left: 82px; }
 
 .brand-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
-.brand-mark { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 13px; display: grid; place-items: center; font-weight: 900; background: linear-gradient(135deg, var(--accent), #23c8a0); color: white; box-shadow: 0 8px 20px rgba(22,163,106,.24); }
+.brand-logo { width: 42px; height: 42px; flex: 0 0 42px; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(11,143,75,.16)); }
 .brand-copy { display:flex; flex-direction:column; min-width: 0; white-space: nowrap; transition: opacity .16s ease, width .16s ease; }
-.brand-copy strong { font-size: 16px; }
-.brand-copy span { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.brand-copy strong { font-size: 17px; letter-spacing: -.5px; }
+.brand-copy strong span { color: var(--accent-strong); }
+.brand-copy small { color: var(--muted); font-size: 10px; margin-top: 2px; letter-spacing:.08em; text-transform:uppercase; }
 .icon-btn { border: 1px solid var(--border); background: var(--surface); color: var(--text); width: 32px; height: 32px; border-radius: 10px; cursor: pointer; }
 .collapse-btn { margin-left: auto; transition: transform .2s ease; }
 
@@ -72,10 +73,11 @@ h3 { margin-bottom:0; }
 .eyebrow { margin-bottom:6px; color:var(--accent-strong); font-size:11px; font-weight:900; letter-spacing:.13em; }
 .muted { color:var(--muted); }
 .topbar-actions { display:flex; align-items:center; gap:10px; }
+.demo-badge { padding:7px 10px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); color:var(--muted); font-size:10px; font-weight:900; letter-spacing:.08em; white-space:nowrap; }
 .theme-toggle,.primary-btn,.secondary-btn,.text-btn { border-radius:12px; cursor:pointer; }
 .theme-toggle { min-height:42px; padding:0 13px; border:1px solid var(--border); background:var(--surface); color:var(--text); display:flex; align-items:center; gap:8px; }
-.primary-btn { border:0; background:var(--accent); color:white; padding:12px 16px; font-weight:800; box-shadow:0 8px 18px rgba(22,163,106,.18); }
-.primary-btn:hover { background:var(--accent-strong); }
+.primary-btn { border:0; background:var(--accent); color:#062517; padding:12px 16px; font-weight:900; box-shadow:0 8px 18px rgba(37,211,102,.18); }
+.primary-btn:hover { background:var(--accent-strong); color:white; }
 .secondary-btn { border:1px solid var(--border); background:var(--surface); color:var(--text); padding:12px 16px; font-weight:800; }
 .text-btn { border:0; background:transparent; color:var(--accent-strong); font-weight:800; }
 .full { width:100%; }
@@ -122,7 +124,7 @@ html[data-theme="dark"] .recovered { background:#2d2748; color:#c5b8ff; }
 .pricing-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; align-items:stretch; }
 .price-card { padding:24px; position:relative; display:flex; flex-direction:column; }
 .price-card.featured { border:2px solid var(--accent); transform:translateY(-6px); }
-.recommended { position:absolute; top:-13px; left:50%; transform:translateX(-50%); padding:6px 12px; border-radius:999px; background:var(--accent); color:white; font-size:10px; font-weight:900; white-space:nowrap; }
+.recommended { position:absolute; top:-13px; left:50%; transform:translateX(-50%); padding:6px 12px; border-radius:999px; background:var(--accent); color:#062517; font-size:10px; font-weight:900; white-space:nowrap; }
 .plan-kicker { color:var(--accent-strong); font-size:11px; font-weight:900; letter-spacing:.1em; }
 .price-card h3 { font-size:24px; margin-bottom:10px; }
 .price { display:flex; align-items:baseline; gap:4px; margin:12px 0 8px; }
@@ -141,6 +143,7 @@ html[data-theme="dark"] .recovered { background:#2d2748; color:#c5b8ff; }
   .two-col { grid-template-columns:1fr; }
   .pricing-grid { grid-template-columns:1fr; }
   .price-card.featured { transform:none; }
+  .demo-badge { display:none; }
 }
 
 @media (max-width: 720px) {
