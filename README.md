@@ -71,6 +71,18 @@ Outros verticais podem ser adicionados posteriormente por perfis de configuraç�
 - atribuição de receita recuperada;
 - dashboard operacional e comercial.
 
+## Voice AI
+
+Arquitetura oficial de voz:
+
+- entrada em áudio com `gemini-3.5-transcribe-live`;
+- transcrição de arquivo com `gemini-3.5-transcribe`;
+- TTS padrão com `gemini-3.8-flash-lite-tts`;
+- TTS premium com `gemini-3.8-flash-tts`;
+- voz-a-voz em tempo real com `gemini-3.8-live`.
+
+A resposta é sempre produzida primeiro como texto canônico. O áudio é uma representação dessa resposta, nunca uma fonte paralela de decisão.
+
 ## Arquitetura
 
 ```text
@@ -132,6 +144,7 @@ Stack inicial:
 | SPEC-0011 | [Reliability](docs/specs/SPEC-0011-RELIABILITY.md) | outbox, retry, idempotência e reconciliação |
 | SPEC-0012 | [Growth Analytics](docs/specs/SPEC-0012-GROWTH-ANALYTICS.md) | funil, cohort, LTV, reviews e indicação |
 | SPEC-0013 | [Frontend Hardening & UX](docs/specs/SPEC-0013-FRONTEND-HARDENING-UX.md) | branding, cache, deploy, acessibilidade, routing e quality gates |
+| SPEC-0014 | [Voice AI](docs/specs/SPEC-0014-VOICE-AI.md) | STT, TTS, modo por tenant, fallback e voz em tempo real |
 
 ## Princípios
 
