@@ -1,73 +1,59 @@
 # SPEC-0003 — WhatsApp e IA
 
 **Status:** Draft  
-**Versão:** 0.1.0
+**Versão:** 0.2.0
 
 ## 1. Objetivo
 
-Transformar o WhatsApp no principal canal de conversão do AgendaZap sem tornar o sistema dependente de respostas probabilísticas.
+WhatsApp é canal de conversão. IA melhora linguagem e roteamento; fluxos determinísticos executam operações críticas.
 
-## 2. Canal
+## 2. Camadas
 
-Integração primária:
+### Conversação livre
+LLM interpreta intenção e entidades.
 
-- Meta WhatsApp Cloud API;
-- webhook para mensagens recebidas;
-- templates aprovados para mensagens iniciadas pelo estabelecimento;
-- tracking de status quando disponível.
+### WhatsApp Flows
+Usado para jornadas estruturadas:
 
-## 3. Intents iniciais
+- selecionar serviço;
+- selecionar profissional;
+- selecionar data/horário;
+- confirmar dados;
+- entrar em lista de espera;
+- reagendar/cancelar.
 
-- `greeting`
-- `list_services`
-- `service_price`
-- `check_availability`
-- `book`
-- `reschedule`
-- `cancel`
-- `payment_help`
-- `business_hours`
-- `address`
-- `talk_to_human`
-- `unknown`
+### Tools determinísticas
+Toda ação de negócio passa por APIs validadas.
 
-## 4. Regra de arquitetura
+## 3. Onboarding do tenant
 
-O LLM pode:
+A integração deve prever onboarding assistido/embedded quando suportado pelo provedor, incluindo:
 
-- interpretar linguagem natural;
-- extrair intenção;
-- extrair entidades;
-- redigir respostas;
-- resumir conversa.
+- vínculo da conta;
+- número;
+- webhook;
+- templates;
+- status da integração;
+- health check.
 
-O LLM não pode:
+## 4. Intents
 
-- gravar diretamente no banco;
-- confirmar horário inexistente;
-- criar cobrança arbitrária;
-- alterar preço;
-- autorizar estorno;
-- ignorar regras de agenda.
-
-Toda ação deve virar chamada determinística a uma tool/API validada.
+- greeting
+- list_services
+- service_price
+- check_availability
+- book
+- reschedule
+- cancel
+- join_waitlist
+- payment_help
+- business_hours
+- address
+- review
+- talk_to_human
+- unknown
 
 ## 5. Tools
-
-Exemplo:
-
-```json
-{
-  "name": "get_available_slots",
-  "arguments": {
-    "service_id": "uuid",
-    "professional_id": "uuid|null",
-    "date": "YYYY-MM-DD"
-  }
-}
-```
-
-Tools mínimas:
 
 - `list_services`
 - `get_service_details`
@@ -76,102 +62,80 @@ Tools mínimas:
 - `confirm_booking`
 - `reschedule_booking`
 - `cancel_booking`
+- `join_waitlist`
 - `get_payment_status`
 - `request_human_handoff`
 
-## 6. Estado conversacional
+## 6. Restrições da IA
 
-Fluxo controlado pelo backend:
+LLM não pode:
 
-```text
-START
-  |
-  v
-IDENTIFY_CUSTOMER
-  |
-  v
-UNDERSTAND_INTENT
-  |
-  +--> FAQ
-  +--> HUMAN
-  +--> BOOKING
-          |
-          v
-       SERVICE
-          |
-          v
-     PROFESSIONAL
-          |
-          v
-        SLOT
-          |
-          v
-       CONFIRM
-          |
-          v
-       PAYMENT?
-          |
-          v
-         DONE
-```
+- gravar direto no banco;
+- alterar preço;
+- inventar disponibilidade;
+- selecionar tenant;
+- alterar política financeira;
+- autorizar reembolso;
+- ignorar RBAC;
+- executar operação fora da allowlist.
 
-## 7. Handoff humano
+Prompt injection é dado não confiável, não autorização.
 
-Disparar handoff quando:
+## 7. Handoff
 
-- cliente solicita;
-- baixa confiança;
-- três falhas consecutivas de interpretação;
-- reclamação;
+Handoff obrigatório em:
+
+- solicitação explícita;
 - pagamento inconsistente;
-- política comercial não automatizada.
+- baixa confiança persistente;
+- reclamação;
+- exceção comercial;
+- risco de ação irreversível.
 
-Durante handoff, o bot não deve competir com o atendente.
+Durante handoff, bot entra em modo passivo.
 
-## 8. Automação outbound
+## 8. Templates e lifecycle
 
-Casos permitidos:
+Criar registry interno:
 
-- confirmação;
-- lembrete;
-- cobrança de sinal;
-- aviso de cancelamento;
-- oferta de vaga para lista de espera;
-- pós-atendimento;
-- reativação de cliente, respeitando consentimento e regras do canal.
+- template_name;
+- language;
+- category;
+- provider_status;
+- version;
+- purpose;
+- variables_schema.
 
-## 9. Recuperação de clientes
+Mensagens devem acompanhar status de entrega quando disponível.
 
-Elegibilidade configurável:
+## 9. Metering
 
-- último atendimento > N dias;
-- serviço elegível;
-- cliente não opt-out;
-- ausência de campanha recente;
-- limite de frequência.
+Registrar por tenant:
 
-Registrar:
-
-- campanha;
-- mensagem;
-- resposta;
-- agendamento atribuído;
-- receita atribuída.
-
-## 10. Observabilidade
-
-Registrar:
-
-- intent detectada;
-- tool chamada;
+- mensagens inbound/outbound;
+- templates enviados;
+- tokens de LLM;
+- custo estimado;
+- chamadas de tool;
 - latência;
-- falha;
-- handoff;
-- tokens/custo quando aplicável;
-- resultado de negócio.
+- falhas;
+- conversão atribuída.
 
-Não registrar segredos nem dados desnecessários em prompts/logs.
+## 10. Fallback
 
-## 11. Fallback sem IA
+Sem LLM, operações essenciais continuam via Flows/menu/página pública.
 
-O produto deve continuar operando com menu e fluxos determinísticos se o provedor de LLM falhar.
+Sem WhatsApp, página pública continua disponível.
+
+## 11. Next Best Action
+
+A IA pode sugerir oportunidades, mas a decisão operacional nasce do Revenue Engine.
+
+Exemplos:
+
+- cliente deveria ter retornado;
+- slot tem risco de ociosidade;
+- cancelamento abriu oportunidade;
+- cliente é candidato à lista de espera.
+
+A versão inicial pode usar regras determinísticas; modelos preditivos são evolução posterior.
