@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check service-worker.js
+
+      - name: Validate JSON
+        run: |
+          python3 - <<'PY'
+          import json
+          for path in ("package.json", "manifest.webmanifest"):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+              print(f"{path}: ok")
+          PY
+
+      - name: Build container
+        run: docker build -t agendazap:ci .
+
+      - name: Validate Nginx
+        run: docker run --rm agendazap:ci nginx -t
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name agendazap-ci -p 18080:80 agendazap:ci
+          trap 'docker logs agendazap-ci || true; docker rm -f agendazap-ci || true' EXIT
+
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18080/healthz | grep -q '^ok$'; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://127.0.0.1:18080/ >/dev/null
+          curl -fsS http://127.0.0.1:18080/agenda >/dev/null
+
+          curl -fsSI http://127.0.0.1:18080/app.js | grep -qi 'x-content-type-options: nosniff'
+          curl -fsSI http://127.0.0.1:18080/app.js | grep -qi 'cache-control: no-cache'
+
+          docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' agendazap-ci
