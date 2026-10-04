@@ -14,7 +14,7 @@ export function pixSignature({signature,requestId,dataId}) {
 }
 async function request(url,options={}) {
   const response=await fetch(url,{...options,signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Provider HTTP ${response.status}`);
+  if(!response.ok){const error=new Error(response.status>=500?'Provedor temporariamente indisponível':'Operação não aceita pelo provedor');error.status=response.status>=500?502:409;throw error;}
   return response.json();
 }
 export async function charge(t,a,c) {

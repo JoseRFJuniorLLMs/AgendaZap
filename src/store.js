@@ -6,7 +6,7 @@ export class Store {
     if(!connectionString)throw new Error('DATABASE_URL is required');
     if(!/^agendazap(?:_[a-z0-9_]{1,48})?$/.test(schema))throw new Error('Invalid AgendaZap schema');
     this.schema=schema;this.client=new pg.Client({connectionString,connectionTimeoutMillis:15000,query_timeout:15000});
-    this.client.on('error',()=>{this.healthy=false;});this.state=emptyState();this.tail=Promise.resolve();this.healthy=false;
+    this.client.on('error',()=>this.unavailable());this.state=emptyState();this.tail=Promise.resolve();this.healthy=false;
   }
   async init(){
     try{
@@ -22,23 +22,31 @@ export class Store {
       await this.client.query('COMMIT');this.state=result.rows[0].payload;this.healthy=true;
     }catch(error){await this.client.query('ROLLBACK').catch(()=>{});await this.close();throw error;}
   }
-  async probe(){if(!this.healthy)throw new Error('Persistence unavailable');await this.client.query('SELECT 1');}
+  unavailable(){this.healthy=false;this.onUnavailable?.();}
+  async probe(){if(!this.healthy)throw new Error('Persistence unavailable');try{await this.client.query('SELECT 1');}catch(error){this.unavailable();throw error;}}
   transaction(actor,operation){
     const run=this.tail.then(async()=>{
       if(!this.healthy)throw new Error('Persistence unavailable; restart required');
       const next=structuredClone(this.state);
       const result=await operation(next);
       if(JSON.stringify(next)===JSON.stringify(this.state))return result;
+      let committing=false;
       try{
         await this.client.query('BEGIN');
         const row=await this.client.query(`SELECT revision FROM "${this.schema}".state WHERE id=1 FOR UPDATE`);
         const revision=(BigInt(row.rows[0].revision)+1n).toString();
         await this.client.query(`UPDATE "${this.schema}".state SET payload=$1::jsonb,revision=$2,updated_at=now() WHERE id=1`,[JSON.stringify(next),revision]);
         await this.client.query(`INSERT INTO "${this.schema}".commits(revision,actor) VALUES($1,$2)`,[revision,actor]);
-        await this.client.query('COMMIT');this.state=next;return result;
+        committing=true;await this.client.query('COMMIT');this.state=next;return result;
       }catch(error){
-        // A lost COMMIT response is ambiguous; reload before any further write.
-        this.healthy=false;await this.client.query('ROLLBACK').catch(()=>{});throw error;
+        // Before COMMIT a successful rollback preserves the old projection.
+        // A lost COMMIT reply requires an authoritative reload before another write.
+        try{
+          await this.client.query('ROLLBACK');
+          if(committing){const row=await this.client.query(`SELECT payload FROM "${this.schema}".state WHERE id=1`);this.state=row.rows[0].payload;}
+        }catch{this.unavailable();}
+        if(/^22/.test(error.code||'')){error.status=400;error.message='Dados não aceitos pelo banco';}
+        throw error;
       }
     });this.tail=run.catch(()=>{});return run;
   }

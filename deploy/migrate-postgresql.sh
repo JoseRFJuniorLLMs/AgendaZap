@@ -14,7 +14,22 @@ tar --exclude=node_modules --exclude=data -czf /home/web2a/backups/agendazap-bef
 cp /etc/agendazap.env /home/web2a/backups/agendazap-before-postgresql-$stamp.env
 chmod 600 /home/web2a/backups/agendazap-before-postgresql-$stamp.env
 sudo systemctl stop agendazap
-rollback() { sudo systemctl start agendazap; }
+old_deps=/home/web2a/backups/agendazap-before-postgresql-$stamp.node_modules
+changed=0
+rollback() {
+  trap - ERR
+  set +e
+  if [ "$changed" = 1 ]; then
+    restore=/home/web2a/backups/agendazap-restore-$stamp
+    mkdir -p "$restore"
+    tar -xzf /home/web2a/backups/agendazap-before-postgresql-$stamp.tgz -C "$restore"
+    rsync -ac --delete --exclude=.git --exclude=data --exclude=node_modules "$restore/" /home/web2a/AgendaZap/
+    sudo install -m 600 -o web2a -g web2a /home/web2a/backups/agendazap-before-postgresql-$stamp.env /etc/agendazap.env
+    if [ -d "$old_deps" ]; then mv /home/web2a/AgendaZap/node_modules /home/web2a/backups/agendazap-failed-$stamp.node_modules; mv "$old_deps" /home/web2a/AgendaZap/node_modules; fi
+  fi
+  sudo systemctl start agendazap
+  exit 1
+}
 trap rollback ERR
 cd /home/web2a/AgendaZap
 set -a
@@ -54,10 +69,12 @@ try{
 NODE
 # Only AgendaZap application files are overlaid. Data and unrelated services stay intact.
 tar --exclude=node_modules --exclude=postgresql.env --exclude=migration-backup-path -cf /home/web2a/AgendaZap-postgresql-stage/cutover.tar src public scripts deploy docs package.json package-lock.json
- tar -xf cutover.tar -C /home/web2a/AgendaZap
+changed=1
+mv /home/web2a/AgendaZap/node_modules "$old_deps"
+cp -a node_modules /home/web2a/AgendaZap/node_modules
+tar -xf cutover.tar -C /home/web2a/AgendaZap
 cd /home/web2a/AgendaZap
-npm ci --omit=dev
 sudo install -m 600 -o web2a -g web2a /home/web2a/AgendaZap-postgresql-stage/postgresql.env /etc/agendazap.env
-trap - ERR
 sudo systemctl start agendazap
 curl --retry 10 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8793/AgendaZap/api/health
+trap - ERR

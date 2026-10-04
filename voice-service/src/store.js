@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {randomUUID} from 'node:crypto';
 import { DEFAULT_VOICE_CONFIG, normalizeTenantId, sanitizeVoiceConfig } from './config.js';
 
 async function ensureDir(dir) { await fs.mkdir(dir, { recursive: true }); }
@@ -10,15 +11,15 @@ async function readJson(file, fallback) {
 }
 
 async function atomicWriteJson(file, value) {
-  const tmp = file + '.' + process.pid + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(value, null, 2) + '\n', 'utf8');
-  await fs.rename(tmp, file);
+  const tmp = file + '.' + process.pid + '.' + randomUUID() + '.tmp';
+  try{await fs.writeFile(tmp, JSON.stringify(value, null, 2) + '\n', 'utf8');await fs.rename(tmp, file);}finally{await fs.unlink(tmp).catch(()=>{});}
 }
 
 export class TenantVoiceStore {
   constructor(dataDir) {
     this.dataDir = dataDir;
     this.file = path.join(dataDir, 'tenant-voice-config.json');
+    this.tail=Promise.resolve();
   }
 
   async init() { await ensureDir(this.dataDir); }
@@ -29,7 +30,10 @@ export class TenantVoiceStore {
     return { ...DEFAULT_VOICE_CONFIG, ...(all[tenantId] || {}) };
   }
 
-  async update(tenantId, patch) {
+  update(tenantId, patch) {
+    const run=this.tail.then(()=>this.writeUpdate(tenantId,patch));this.tail=run.catch(()=>{});return run;
+  }
+  async writeUpdate(tenantId, patch) {
     tenantId = normalizeTenantId(tenantId);
     const clean = sanitizeVoiceConfig(patch);
     const all = await readJson(this.file, {});
@@ -47,16 +51,19 @@ export class UsageStore {
   constructor(dataDir) {
     this.dataDir = dataDir;
     this.file = path.join(dataDir, 'voice-usage.ndjson');
+    this.tail=Promise.resolve();
   }
 
   async init() { await ensureDir(this.dataDir); }
 
-  async append(event) {
+  append(event) {
+    for(const key of ['audioBytes','audioDurationMs','ttsCharacters','latencyMs'])if(event[key]!==undefined&&(!Number.isFinite(event[key])||event[key]<0))return Promise.reject(new Error(`${key} inválido`));
     const row = { occurredAt: new Date().toISOString(), ...event };
-    await fs.appendFile(this.file, JSON.stringify(row) + '\n', 'utf8');
+    const run=this.tail.then(()=>fs.appendFile(this.file,JSON.stringify(row)+'\n','utf8'));this.tail=run.catch(()=>{});return run;
   }
 
   async summary(tenantId) {
+    await this.tail;
     tenantId = normalizeTenantId(tenantId);
     let text = '';
     try { text = await fs.readFile(this.file, 'utf8'); }

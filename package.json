@@ -10,7 +10,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/domain.js && node --check public/app.js && node --check public/sw.js && node --check ui-test/server.js",
+    "check": "node scripts/check-syntax.js",
     "test:ui": "playwright test"
   },
   "dependencies": {

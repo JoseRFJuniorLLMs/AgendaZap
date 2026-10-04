@@ -28,6 +28,10 @@ jobs:
       - name: Check AgendaZap syntax
         run: npm run check
 
+      - name: Install Voice AI dependencies
+        working-directory: voice-service
+        run: npm ci --no-audit --no-fund
+
       - name: Test AgendaZap
         run: npm test
 
@@ -46,10 +50,6 @@ jobs:
                   json.load(f)
               print(f"{path}: ok")
           PY
-
-      - name: Install Voice AI dependencies
-        working-directory: voice-service
-        run: npm install --no-audit --no-fund
 
       - name: Check Voice AI
         working-directory: voice-service
@@ -84,7 +84,12 @@ jobs:
           PY
 
       - name: Validate deployment manifests
+        env:
+          POSTGRES_PASSWORD: validation-only-not-a-production-password
         run: |
           docker compose -f compose.yaml config >/dev/null
           test -f deploy/agendazap.service
           test -f deploy/nginx-agendazap.conf
+          bash -n deploy/agendazap-auto-deploy.sh
+          bash -n deploy/migrate-postgresql.sh
+          python3 deploy/test-auto-deploy.py

@@ -1,4 +1,4 @@
-const CACHE = 'agendazap-shell-v3';
+const CACHE = 'agendazap-shell-v4';
 const SHELL = [
   './',
   './index.html',
@@ -37,7 +37,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          if (response.ok) caches.open(CACHE).then(cache => cache.put('./index.html', response.clone()));
+          if (response.ok) {const copy=response.clone();event.waitUntil(caches.open(CACHE).then(cache => cache.put('./index.html', copy)).catch(()=>{}));}
           return response;
         })
         .catch(() => caches.match('./index.html'))
@@ -48,7 +48,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        if (response.ok) caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
+        if (response.ok) {const copy=response.clone();event.waitUntil(caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(()=>{}));}
         return response;
       })
       .catch(() => caches.match(event.request))

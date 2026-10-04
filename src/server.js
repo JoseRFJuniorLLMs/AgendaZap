@@ -12,6 +12,8 @@ import {converse} from './conversation.js';
 import {startWorker} from './worker.js';
 import {startBackups} from './backup.js';
 import * as billing from './billing.js';
+import {boundedRate,validUnicode} from './limits.js';
+const customerCollator=new Intl.Collator('pt-BR',{sensitivity:'base'});
 
 const text=z.string().trim().min(1).max(160);
 const id=z.string().uuid();
@@ -30,16 +32,15 @@ const catalog=t=>({tenant:{name:t.name,slug:t.slug,timezone:t.timezone,address:t
 
 export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',origin=process.env.PUBLIC_ORIGIN||'http://localhost:8793',secure=process.env.COOKIE_SECURE==='true'}={}) {
   const app=express(); app.disable('x-powered-by');app.set('strict routing',true);app.set('trust proxy','loopback');
-  app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:'],connectSrc:["'self'"],formAction:["'self'"],frameAncestors:["'none'"],upgradeInsecureRequests:secure?[]:null}}}));
+  app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:'],mediaSrc:["'self'",'blob:'],connectSrc:["'self'"],formAction:["'self'"],frameAncestors:["'none'"],upgradeInsecureRequests:secure?[]:null}}}));
   app.use(express.json({limit:'128kb',verify:(req,res,buf)=>{req.rawBody=buf;}}));
+  app.use((req,res,next)=>validUnicode(req.body)?next():res.status(400).json({error:'Texto contém caracteres inválidos'}));
   const router=express.Router();
   const rate=new Map();
   router.use('/api',(req,res,next)=>{
     res.set('Cache-Control','no-store');
-    const key=`${req.ip}:${req.path.startsWith('/auth')?'auth':'api'}`;
-    const now=Date.now();let r=rate.get(key);if(!r || now-r.since>60000){r={since:now,count:0};rate.set(key,r);}
-    if(rate.size>10000)for(const[k,v]of rate)if(now-v.since>60000)rate.delete(k);
-    if(++r.count>(req.path.startsWith('/auth')?20:300))return res.status(429).json({error:'Aguarde antes de tentar novamente'});
+    const bucket=req.path==='/voice-authorize'?'voice':req.path.startsWith('/auth')?'auth':'api';
+    if(!boundedRate(rate,`${req.ip}:${bucket}`,{limit:bucket==='auth'?20:300}))return res.status(429).json({error:'Aguarde antes de tentar novamente'});
     if(!['GET','HEAD','OPTIONS'].includes(req.method) && !req.path.startsWith('/webhooks')) {
       if(req.get('origin') && req.get('origin')!==origin)return res.status(403).json({error:'Origem inválida'});
       if(req.get('sec-fetch-site')==='cross-site')return res.status(403).json({error:'Origem inválida'});
@@ -47,6 +48,11 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
     }
     next();
   });
+  const simulations=new Map(),billingLocks=new Map();
+  async function withBillingLock(tenantId,operation){
+    const previous=billingLocks.get(tenantId)||Promise.resolve();const current=previous.catch(()=>{}).then(operation);billingLocks.set(tenantId,current);
+    try{return await current;}finally{if(billingLocks.get(tenantId)===current)billingLocks.delete(tenantId);}
+  }
   function getTenant(slug) {return Object.values(store.state.tenants).find(t=>t.slug===slug)||d.fail('Estabelecimento não encontrado',404);}
   const cookieName='agendazap_session';
   function token(req) {return req.headers.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))?.split('=').slice(1).join('=')||'';}
@@ -66,16 +72,19 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   async function mutate(req,fn) {return store.transaction(req.account.id,state=>fn(state.tenants[req.account.tenant_id],state));}
   function accountResponse(req) {return {user:{id:req.account.id,name:req.account.name,email:req.account.email,role:req.account.role,professional_id:req.account.professional_id},tenant:safeTenant(req.tenant),csrf:req.session.csrf};}
   async function loginSession(res,state,account) {
+    for(const [key,s]of Object.entries(state.sessions))if(s.revoked||s.expires_at<Date.now())delete state.sessions[key];
+    const own=Object.entries(state.sessions).filter(([,s])=>s.account_id===account.id);for(const [key]of own.slice(0,Math.max(0,own.length-9)))delete state.sessions[key];
     const raw=randomBytes(32).toString('hex'); const csrf=randomBytes(24).toString('hex');
     state.sessions[d.hashToken(raw)]={account_id:account.id,csrf,expires_at:Date.now()+12*3600000,revoked:false};
     res.cookie(cookieName,raw,{httpOnly:true,sameSite:'strict',secure,path:basePath||'/',maxAge:12*3600000});
-    return {user:{id:account.id,name:account.name,email:account.email,role:account.role},tenant:safeTenant(state.tenants[account.tenant_id]),csrf};
+    return {user:{id:account.id,name:account.name,email:account.email,role:account.role,professional_id:account.professional_id},tenant:safeTenant(state.tenants[account.tenant_id]),csrf};
   }
-  router.get('/api/health',async(req,res)=>{try{await store.probe?.();res.status(store.healthy?200:503).json({status:store.healthy?'ok':'unavailable',database:'PostgreSQL',version:'1.0.0'});}catch{res.status(503).json({status:'unavailable'});}});
+  router.get('/api/health',async(req,res)=>{try{await store.probe?.();res.status(store.healthy?200:503).json({status:store.healthy?'ok':'unavailable',database:'PostgreSQL',version:'1.0.0',revision:process.env.APP_REVISION||null});}catch{res.status(503).json({status:'unavailable'});}});
   router.get('/api/config',(req,res)=>res.json({base_path:basePath,integrations:providers.integrationStatus()}));
   router.post('/api/auth/register',async(req,res)=>{
     const data=parse(z.object({name:text,email:z.string().email().max(200).transform(x=>x.toLowerCase()),password:z.string().min(12).max(128),business_name:text,slug:z.string().regex(/^[a-z0-9][a-z0-9-]{2,49}$/),timezone:z.string().max(80).default('America/Sao_Paulo')}).strict(),req.body);
     const result=await store.transaction('registration',async state=>{
+      if(Object.keys(state.tenants).length>=10000||Object.values(state.tenants).filter(t=>Date.parse(t.created_at)>Date.now()-86400000).length>=1000)d.fail('Cadastro temporariamente indisponível. Contate o suporte.',429);
       if(state.accounts[data.email] || Object.values(state.tenants).some(t=>t.slug===data.slug))d.fail('E-mail ou endereço já cadastrado',409);
       const account={id:d.uid(),email:data.email,name:data.name,password_hash:d.passwordHash(data.password),role:'owner',active:true};
       const tenant=d.newTenant({name:data.business_name,slug:data.slug,timezone:data.timezone},account.id);account.tenant_id=tenant.id;
@@ -85,19 +94,21 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   });
   router.post('/api/auth/login',async(req,res)=>{
     const data=parse(z.object({email:z.string().email().transform(x=>x.toLowerCase()),password:z.string().max(128)}).strict(),req.body);
-    const alias=store.state.accounts[data.email],account=alias && store.state.accounts[alias.alias];
-    if(!account?.active || !d.passwordValid(data.password,account.password_hash))d.fail('E-mail ou senha incorretos',401);
-    const result=await store.transaction(account.id,async state=>{d.audit(state.tenants[account.tenant_id],account.id,'auth.login',account.id);return loginSession(res,state,account);});res.json(result);
+    const result=await store.transaction('login',async state=>{const alias=state.accounts[data.email],account=alias&&state.accounts[alias.alias];if(!account?.active||!d.passwordValid(data.password,account.password_hash))d.fail('E-mail ou senha incorretos',401);d.audit(state.tenants[account.tenant_id],account.id,'auth.login',account.id);return loginSession(res,state,account);});res.json(result);
   });
-  router.post('/api/auth/logout',auth,async(req,res)=>{await store.transaction(req.account.id,state=>{state.sessions[d.hashToken(token(req))].revoked=true;});res.clearCookie(cookieName,{path:basePath||'/'});res.json({ok:true});});
+  router.post('/api/auth/logout',async(req,res)=>{const key=d.hashToken(token(req));const s=store.state.sessions[key];if(s&&!s.revoked&&s.expires_at>=Date.now()&&req.get('x-csrf-token')!==s.csrf)d.fail('Sessão inválida',403);await store.transaction('logout',state=>{delete state.sessions[key];});res.clearCookie(cookieName,{path:basePath||'/'});res.json({ok:true});});
   router.get('/api/auth/me',auth,(req,res)=>res.json(accountResponse(req)));
   router.get('/api/voice-authorize',auth,manager,(req,res)=>{
-    const original=String(req.get('x-original-uri')||'');
-    const match=original.match(/\/(?:api\/voice\/(?:config|usage|transcribe|tts|respond)|ws\/voice\/live)\/([a-zA-Z0-9_-]{1,64})(?:[/?]|$)/);
+    if((req.get('origin')&&req.get('origin')!==origin)||req.get('sec-fetch-site')==='cross-site')return res.sendStatus(403);
+    if(req.get('x-original-method')&&!['GET','HEAD','OPTIONS'].includes(req.get('x-original-method'))&&req.get('x-csrf-token')!==req.session.csrf)return res.sendStatus(403);
+    const original=String(req.get('x-original-uri')||'').split('?')[0];
+    const prefix=basePath.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const match=original.match(new RegExp(`^${prefix}/(?:api/voice/(?:config|usage|transcribe|tts|respond)|ws/voice/live)/([a-zA-Z0-9_-]{1,64})$`));
     if(!match||match[1]!==req.tenant.id)return res.sendStatus(403);
+    res.set('X-AgendaZap-Tenant',req.tenant.id);
     res.sendStatus(204);
   });
-  router.post('/api/auth/password',auth,async(req,res)=>{const data=parse(z.object({current:z.string().max(128),password:z.string().min(12).max(128)}).strict(),req.body);if(!d.passwordValid(data.current,req.account.password_hash))d.fail('Senha atual incorreta',403);await mutate(req,(t,state)=>{state.accounts[req.account.id].password_hash=d.passwordHash(data.password);for(const s of Object.values(state.sessions))if(s.account_id===req.account.id)s.revoked=true;d.audit(t,req.account.id,'auth.password_changed',req.account.id);});res.json({ok:true});});
+  router.post('/api/auth/password',auth,async(req,res)=>{const data=parse(z.object({current:z.string().max(128),password:z.string().min(12).max(128)}).strict(),req.body);await mutate(req,(t,state)=>{const account=state.accounts[req.account.id];if(!d.passwordValid(data.current,account.password_hash))d.fail('Senha atual incorreta',403);account.password_hash=d.passwordHash(data.password);for(const [key,s]of Object.entries(state.sessions))if(s.account_id===account.id)delete state.sessions[key];d.audit(t,account.id,'auth.password_changed',account.id);});res.json({ok:true});});
   router.get('/api/dashboard',auth,(req,res)=>{
     const day=parse(date,req.query.date||d.localParts(Date.now(),req.tenant.timezone).date);
     const t=req.tenant;
@@ -106,15 +117,16 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   });
   for(const[type,schema]of [['services',serviceSchema],['professionals',professionalSchema]]) {
     router.get(`/api/${type}`,auth,(req,res)=>res.json(req.tenant[type]));
-    router.post(`/api/${type}`,auth,manager,async(req,res)=>{const data=parse(schema,req.body);const result=await mutate(req,t=>{if(type==='professionals')for(const sid of data.service_ids)d.entity(t,'services',sid);const item={id:d.uid(),...data};t[type].push(item);d.audit(t,req.account.id,`${type}.created`,item.id);return item;});res.status(201).json(result);});
+    router.post(`/api/${type}`,auth,manager,async(req,res)=>{const data=parse(schema,req.body);const result=await mutate(req,t=>{if(t[type].length>=100)d.fail('Limite do catálogo atingido. Contate o suporte.',429);if(type==='professionals')for(const sid of data.service_ids)d.entity(t,'services',sid);const item={id:d.uid(),...data};t[type].push(item);d.audit(t,req.account.id,`${type}.created`,item.id);return item;});res.status(201).json(result);});
     router.patch(`/api/${type}/:id`,auth,manager,async(req,res)=>{const data=parse(schema,req.body);const result=await mutate(req,t=>{const item=d.entity(t,type,req.params.id);if(type==='professionals')for(const sid of data.service_ids)d.entity(t,'services',sid);Object.assign(item,data);d.audit(t,req.account.id,`${type}.updated`,item.id);return item;});res.json(result);});
   }
   router.get('/api/availability',auth,(req,res)=>res.json(d.slots(req.tenant,parse(id,req.query.service_id),parse(date,req.query.date),req.query.professional_id)));
   router.get('/api/blocks',auth,(req,res)=>res.json(req.tenant.blocks.filter(b=>req.account.role!=='professional'||b.professional_id===req.account.professional_id)));
-  router.post('/api/blocks',auth,async(req,res)=>{const data=parse(z.object({professional_id:id,starts_at:instant,ends_at:instant,reason:text}).strict().refine(x=>x.starts_at<x.ends_at),req.body);if(req.account.role==='professional' && data.professional_id!==req.account.professional_id)d.fail('Acesso negado',403);if(!['owner','manager','professional'].includes(req.account.role))d.fail('Acesso negado',403);const result=await mutate(req,t=>{d.entity(t,'professionals',data.professional_id);if(t.appointments.some(a=>a.professional_id===data.professional_id && d.ACTIVE.includes(a.status)&&d.overlap(data.starts_at,data.ends_at,a.starts_at,a.ends_at)))d.fail('O bloqueio sobrepõe agendamentos existentes',409);const b={id:d.uid(),...data};t.blocks.push(b);d.audit(t,req.account.id,'block.created',b.id);return b;});res.status(201).json(result);});
+  router.post('/api/blocks',auth,async(req,res)=>{const data=parse(z.object({professional_id:id,starts_at:instant,ends_at:instant,reason:text}).strict().refine(x=>Date.parse(x.starts_at)<Date.parse(x.ends_at)),req.body);data.starts_at=new Date(data.starts_at).toISOString();data.ends_at=new Date(data.ends_at).toISOString();if(req.account.role==='professional' && data.professional_id!==req.account.professional_id)d.fail('Acesso negado',403);if(!['owner','manager','professional'].includes(req.account.role))d.fail('Acesso negado',403);const result=await mutate(req,t=>{d.entity(t,'professionals',data.professional_id);if(t.appointments.some(a=>a.professional_id===data.professional_id && d.ACTIVE.includes(a.status)&&d.overlap(data.starts_at,data.ends_at,a.starts_at,a.ends_at)))d.fail('O bloqueio sobrepõe agendamentos existentes',409);const b={id:d.uid(),...data};t.blocks.push(b);d.audit(t,req.account.id,'block.created',b.id);return b;});res.status(201).json(result);});
   router.delete('/api/blocks/:id',auth,async(req,res)=>{await mutate(req,t=>{const b=d.entity(t,'blocks',req.params.id);if(!['owner','manager'].includes(req.account.role)&&!(req.account.role==='professional'&&b.professional_id===req.account.professional_id))d.fail('Acesso negado',403);t.blocks=t.blocks.filter(x=>x.id!==b.id);d.audit(t,req.account.id,'block.removed',b.id);});res.json({ok:true});});
   router.get('/api/appointments',auth,(req,res)=>res.json(req.tenant.appointments.filter(a=>req.account.role!=='professional'||a.professional_id===req.account.professional_id).map(safeAppointment)));
-  router.post('/api/appointments',auth,operator,async(req,res)=>{const data=parse(booking,req.body);res.status(201).json(safeAppointment(await mutate(req,t=>d.book(t,data,{actor:req.account.id,source:'operator',paymentEnabled:providers.integrationStatus().pix}))));});
+  router.post('/api/appointments',auth,operator,async(req,res)=>{const data=parse(booking,req.body);const a=await mutate(req,t=>d.book(t,data,{actor:req.account.id,source:'operator',paymentEnabled:providers.integrationStatus().pix}));res.status(201).json({...safeAppointment(a),manage_url:`${origin}${basePath}/#manage/${a.id}/${a.manage_token}`});});
+  router.get('/api/appointments/:id/payment-link',auth,operator,(req,res)=>{const a=d.entity(req.tenant,'appointments',req.params.id);res.json({manage_url:`${origin}${basePath}/#manage/${a.id}/${a.manage_token}`});});
   router.post('/api/appointments/:id/status',auth,async(req,res)=>{const data=parse(z.object({status:z.enum(['confirmed','checked_in','completed','no_show','cancelled_by_business'])}).strict(),req.body);res.json(safeAppointment(await mutate(req,t=>{const a=d.entity(t,'appointments',req.params.id);if(req.account.role==='professional'&&a.professional_id!==req.account.professional_id)d.fail('Acesso negado',403);return d.transition(t,a,data.status,req.account.id);})));});
   router.post('/api/appointments/:id/reschedule',auth,operator,async(req,res)=>{const data=parse(z.object({starts_at:instant,professional_id:id.optional()}).strict(),req.body);res.json(safeAppointment(await mutate(req,t=>d.reschedule(t,d.entity(t,'appointments',req.params.id),data,req.account.id))));});
   router.get('/api/customers',auth,operator,(req,res)=>{
@@ -129,14 +141,14 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
         const haystack=[customer.name,customer.phone,...(customer.tags||[])].join(' ').toLocaleLowerCase('pt-BR');
         return haystack.includes(q);
       })
-      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{sensitivity:'base'}));
+      .sort((a,b)=>customerCollator.compare(String(a.name||''),String(b.name||'')));
     const total=filtered.length;
     const pages=Math.max(1,Math.ceil(total/pageSize));
     const safePage=Math.min(page,pages);
     const start=(safePage-1)*pageSize;
     res.json({items:filtered.slice(start,start+pageSize),total,page:safePage,page_size:pageSize,pages});
   });
-  router.post('/api/customers',auth,operator,async(req,res)=>{const data=parse(z.object({name:text,phone,consent:z.boolean()}).strict(),req.body);res.status(201).json(await mutate(req,t=>{const c=d.customer(t,data);d.audit(t,req.account.id,'customer.updated',c.id);return c;}));});
+  router.post('/api/customers',auth,operator,async(req,res)=>{const data=parse(z.object({name:text,phone,consent:z.boolean()}).strict(),req.body);res.status(201).json(await mutate(req,t=>{const c=d.customer(t,data,{trusted:true});d.audit(t,req.account.id,'customer.updated',c.id);return c;}));});
   router.patch('/api/customers/:id',auth,operator,async(req,res)=>{const data=parse(z.object({name:text,phone,consent:z.boolean(),tags:z.array(z.string().max(30)).max(20)}).strict(),req.body);res.json(await mutate(req,t=>{const c=d.entity(t,'customers',req.params.id);if(t.customers.some(x=>x.id!==c.id&&x.phone===data.phone))d.fail('Telefone já cadastrado',409);Object.assign(c,data);c.consents.push({at:new Date().toISOString(),purpose:'marketing',channel:'operator',granted:data.consent});d.audit(t,req.account.id,'customer.updated',c.id);return c;}));});
   router.get('/api/customers/:id/export',auth,manager,async(req,res)=>{const result=await mutate(req,t=>{const c=d.entity(t,'customers',req.params.id);d.audit(t,req.account.id,'customer.exported',c.id);return {customer:c,appointments:t.appointments.filter(a=>a.customer_id===c.id).map(safeAppointment),conversations:t.conversations.filter(x=>x.customer_id===c.id)};});res.attachment('cliente.json').json(result);});
   router.post('/api/customers/:id/anonymize',auth,owner,async(req,res)=>{await mutate(req,t=>{const c=d.entity(t,'customers',req.params.id);c.name='Cliente anonimizado';c.phone=`erased:${c.id}`;delete c.email;c.consent=false;c.tags=[];c.consents=[];c.anonymized_at=new Date().toISOString();for(const conv of t.conversations.filter(x=>x.customer_id===c.id)){conv.messages=[];conv.closed_at=new Date().toISOString();}for(const j of t.jobs.filter(j=>j.payload.customer_id===c.id&&j.status==='pending'))j.status='cancelled';d.audit(t,req.account.id,'customer.anonymized_projection',c.id);});res.json({ok:true,note:'Projeção anonimizada. Histórico imutável segue política de retenção; solicitação de eliminação deve ser tratada pelo responsável.'});});
@@ -147,7 +159,7 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.get('/api/conversations',auth,operator,(req,res)=>res.json(req.tenant.conversations));
   router.post('/api/conversations/:id/handoff',auth,operator,async(req,res)=>{const data=parse(z.object({enabled:z.boolean()}).strict(),req.body);res.json(await mutate(req,t=>{const c=d.entity(t,'conversations',req.params.id);c.human_handoff=data.enabled;c.state=data.enabled?'human':'start';c.failures=0;d.audit(t,req.account.id,'conversation.handoff',c.id);return c;}));});
   router.post('/api/conversations/:id/reply',auth,operator,async(req,res)=>{const data=parse(z.object({text:z.string().trim().min(1).max(2000)}).strict(),req.body);await mutate(req,t=>{const c=d.entity(t,'conversations',req.params.id);if(!c.human_handoff)d.fail('Assuma o atendimento primeiro',409);if(!c.last_inbound_at||Date.parse(c.last_inbound_at)<Date.now()-24*3600000)d.fail('Janela de 24h encerrada; use um template aprovado',409);const msg={id:d.uid(),direction:'out',text:data.text,at:new Date().toISOString(),status:'queued'};c.messages.push(msg);d.queue(t,'reply',{customer_id:c.customer_id,text:data.text,conversation_id:c.id,message_id:msg.id},undefined,`reply:${msg.id}`);});res.json({ok:true});});
-  router.post('/api/conversations/simulate',auth,operator,async(req,res)=>{const data=parse(z.object({phone,name:text,text:z.string().min(1).max(2000)}).strict(),req.body);res.json(await mutate(req,t=>{const before=t.jobs.length;const reply=converse(t,{...data,message_id:d.uid()});for(const j of t.jobs.slice(before))if(j.type==='reply'){j.status='simulated';const conv=d.entity(t,'conversations',j.payload.conversation_id);conv.messages.find(m=>m.id===j.payload.message_id).status='simulated';}return {reply};}));});
+  router.post('/api/conversations/simulate',auth,operator,(req,res)=>{const data=parse(z.object({phone,name:text,text:z.string().min(1).max(2000)}).strict(),req.body);const key=`${req.tenant.id}:${req.account.id}`;let simulation=simulations.get(key);if(!simulation||simulation.expires<Date.now()){if(simulations.size>=100)simulations.delete(simulations.keys().next().value);simulation={tenant:structuredClone(req.tenant),expires:Date.now()+3600000,count:0};simulations.set(key,simulation);}if(++simulation.count>1000){simulations.delete(key);d.fail('Simulação concluída. Abra uma nova sessão de teste.',429);}const reply=converse(simulation.tenant,{...data,message_id:d.uid()});for(const j of simulation.tenant.jobs)j.status='simulated';res.json({reply,simulated:true});});
   router.get('/api/jobs',auth,manager,(req,res)=>res.json(req.tenant.jobs));
   router.post('/api/jobs/:id/retry',auth,manager,async(req,res)=>{await mutate(req,t=>{const j=d.entity(t,'jobs',req.params.id);if(!['failed','blocked'].includes(j.status))d.fail('Job não pode ser reexecutado',409);j.status='pending';j.attempts=0;j.scheduled_at=new Date().toISOString();});res.json({ok:true});});
   router.post('/api/campaigns/recovery',auth,manager,async(req,res)=>{const campaign=d.uid();let count=0;await mutate(req,t=>{for(const c of t.customers.filter(c=>c.consent&&c.last_visit_at&&Date.parse(c.last_visit_at)<Date.now()-t.recovery_days*86400000&&!t.appointments.some(a=>a.customer_id===c.id&&d.ACTIVE.includes(a.status)))){if(t.jobs.some(j=>j.type==='recovery'&&j.payload.customer_id===c.id&&Date.parse(j.scheduled_at)>Date.now()-30*86400000))continue;d.queue(t,'recovery',{customer_id:c.id,campaign_id:campaign});count++;}d.audit(t,req.account.id,'campaign.recovery_created',campaign);});res.json({campaign_id:campaign,queued:count});});
@@ -169,36 +181,41 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   });
   router.post('/api/billing/checkout',auth,owner,async(req,res)=>{
     const data=parse(z.object({plan_id:z.string().refine(value=>billing.PLANS.some(plan=>plan.id===value),'Plano inválido')}).strict(),req.body);
-    const current=req.tenant.billing;
-    if(current&&['authorized','pending'].includes(current.status)&&current.checkout_url){
-      if(current.plan_id===data.plan_id)return res.json(current);
-      d.fail('Cancele a assinatura atual antes de escolher outro plano',409);
-    }
-    const key=await mutate(req,t=>{
+    const result=await withBillingLock(req.tenant.id,async()=>{
+      const live=store.state.tenants[req.tenant.id],current=live.billing;
+      if(current&&['authorized','pending','paused'].includes(current.status)&&current.provider_id){
+        if(current.plan_id===data.plan_id)return current;
+        d.fail('Cancele a assinatura atual antes de escolher outro plano',409);
+      }
+      const key=await mutate(req,t=>{
       if(t.billing_request_plan!==data.plan_id){
         t.billing_request_key=d.uid();
         t.billing_request_plan=data.plan_id;
       }
       t.billing_request_key||=d.uid();
       return t.billing_request_key;
-    });
-    const result=await billing.subscription(req.tenant,req.account.email,key,data.plan_id);
-    await mutate(req,t=>{
-      t.billing=result;
+      });
+      const created=await billing.subscription(store.state.tenants[req.tenant.id],req.account.email,key,data.plan_id);
+      await mutate(req,t=>{
+      t.billing=created;
       t.billing_request_plan=data.plan_id;
-      d.audit(t,req.account.id,'billing.checkout_created',result.provider_id);
+      d.audit(t,req.account.id,'billing.checkout_created',created.provider_id);
+      });return created;
     });
     res.json(result);
   });
   router.post('/api/billing/cancel',auth,owner,async(req,res)=>{
-    const subscription=req.tenant.billing;
+    const result=await withBillingLock(req.tenant.id,async()=>{
+    const subscription=store.state.tenants[req.tenant.id].billing;
     if(!subscription?.provider_id)d.fail('Sem assinatura ativa',409);
-    const result=await billing.cancelSubscription(subscription.provider_id);
+    const cancelled=await billing.cancelSubscription(subscription.provider_id);
     await mutate(req,t=>{
-      t.billing.status=result.status;
+      t.billing.status=cancelled.status;
       t.billing_request_key=null;
       t.billing_request_plan=null;
       d.audit(t,req.account.id,'billing.cancelled',subscription.provider_id);
+    });
+    return cancelled;
     });
     res.json({status:result.status});
   });
@@ -211,14 +228,19 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.get('/api/public/appointments/:id/manage',(req,res)=>{const {t,a}=managed(req);res.json({appointment:safeAppointment(a),catalog:catalog(t),payment:t.payments.find(p=>p.appointment_id===a.id)||null});});
   router.post('/api/public/appointments/:id/cancel',async(req,res)=>{await store.transaction('public-cancel',state=>{const {t,a}=managed(req,state);if(Date.parse(a.starts_at)-Date.now()<t.cancellation_hours*3600000)d.fail('Prazo de cancelamento encerrado. Fale com o estabelecimento.',409);d.transition(t,a,'cancelled_by_customer','customer');});res.json({ok:true});});
   router.post('/api/public/appointments/:id/reschedule',async(req,res)=>{const data=parse(z.object({starts_at:instant,professional_id:id.optional()}).strict(),req.body);res.json(await store.transaction('public-reschedule',state=>{const {t,a}=managed(req,state);if(Date.parse(a.starts_at)-Date.now()<t.cancellation_hours*3600000)d.fail('Prazo de reagendamento encerrado',409);return safeAppointment(d.reschedule(t,a,data,'customer'));}));});
-  router.post('/api/public/appointments/:id/payment-email',async(req,res)=>{const data=parse(z.object({email:z.string().email().max(200)}).strict(),req.body);await store.transaction('public-payment-email',state=>{const {t,a}=managed(req,state);if(a.status!=='awaiting_payment'||Date.parse(a.expires_at)<=Date.now())d.fail('Reserva não está aguardando pagamento',409);d.entity(t,'customers',a.customer_id).email=data.email;const job=t.jobs.find(j=>j.type==='create_payment'&&j.payload.appointment_id===a.id);if(job&&['blocked','failed'].includes(job.status)){job.status='pending';job.attempts=0;job.scheduled_at=new Date().toISOString();}});res.json({ok:true});});
+  router.post('/api/public/appointments/:id/payment-email',async(req,res)=>{const data=parse(z.object({email:z.string().email().max(200)}).strict(),req.body);await store.transaction('public-payment-email',state=>{const {t,a}=managed(req,state);if(a.status!=='awaiting_payment'||Date.parse(a.expires_at)<=Date.now())d.fail('Reserva não está aguardando pagamento',409);a.payer_email=data.email;const job=t.jobs.find(j=>j.type==='create_payment'&&j.payload.appointment_id===a.id);if(job&&['blocked','failed'].includes(job.status)){job.status='pending';job.attempts=0;job.scheduled_at=new Date().toISOString();}});res.json({ok:true});});
   router.get('/api/webhooks/whatsapp',(req,res)=>{if(!process.env.WHATSAPP_VERIFY_TOKEN||req.query['hub.mode']!=='subscribe'||req.query['hub.verify_token']!==process.env.WHATSAPP_VERIFY_TOKEN)return res.sendStatus(403);res.type('text').send(req.query['hub.challenge']);});
   router.post('/api/webhooks/whatsapp',async(req,res)=>{
     if(!providers.whatsappSignature(req.rawBody,req.get('x-hub-signature-256')))d.fail('Assinatura inválida',401);
-    const payload=parse(z.object({entry:z.array(z.object({changes:z.array(z.object({value:z.object({metadata:z.object({phone_number_id:z.string()}),messages:z.array(z.object({id:z.string().max(100),from:z.string().regex(/^\d{8,15}$/),type:z.string(),text:z.object({body:z.string().max(4000)}).optional()})).optional(),contacts:z.array(z.object({profile:z.object({name:text})})).optional(),statuses:z.array(z.object({id:z.string(),status:z.string()})).optional()}).passthrough()})).max(20)})).max(20)}).passthrough(),req.body);
-    for(const entry of payload.entry)for(const change of entry.changes){const value=change.value;const t=Object.values(store.state.tenants).find(t=>t.integrations.phone_id===value.metadata.phone_number_id);if(!t)continue;
-      for(const m of value.messages||[]) {const intent=m.type==='text'?await providers.classify(m.text?.body||''):null;await store.transaction('whatsapp',state=>{converse(state.tenants[t.id],{phone:`+${m.from}`,name:value.contacts?.[0]?.profile?.name,text:m.text?.body||'HUMANO',message_id:m.id},intent);});}
-      if(value.statuses)await store.transaction('whatsapp-status',state=>{for(const status of value.statuses)for(const conv of state.tenants[t.id].conversations)for(const msg of conv.messages)if(msg.provider_id===status.id)msg.status=status.status;});
+    const entries=Array.isArray(req.body?.entry)?req.body.entry.slice(0,20):[];
+    for(const entry of entries)for(const change of Array.isArray(entry.changes)?entry.changes.slice(0,20):[]){const value=change.value;if(change.field&&change.field!=='messages')continue;const phoneId=value?.metadata?.phone_number_id;if(typeof phoneId!=='string')continue;const t=Object.values(store.state.tenants).find(t=>t.integrations.phone_id===phoneId);if(!t)continue;
+      for(const raw of Array.isArray(value.messages)?value.messages.slice(0,100):[]){
+        const parsed=z.object({id:z.string().max(100),from:z.string().regex(/^\d{8,15}$/),type:z.string(),text:z.object({body:z.string().transform(s=>s.slice(0,4000))}).optional(),button:z.object({text:z.string().max(4000)}).optional(),interactive:z.object({button_reply:z.object({title:z.string().max(4000)}).optional(),list_reply:z.object({title:z.string().max(4000)}).optional()}).optional()}).safeParse(raw);if(!parsed.success)continue;
+        const m=parsed.data,message=m.type==='text'?m.text?.body:m.type==='button'?m.button?.text:m.type==='interactive'?(m.interactive?.button_reply?.title||m.interactive?.list_reply?.title):['audio','image','document'].includes(m.type)?'HUMANO':null;if(!message)continue;
+        const intent=m.type==='text'?await providers.classify(message):null;const name=typeof value.contacts?.[0]?.profile?.name==='string'?value.contacts[0].profile.name.slice(0,160):undefined;
+        await store.transaction('whatsapp',state=>{converse(state.tenants[t.id],{phone:`+${m.from}`,name,text:message,message_id:m.id},intent);});
+      }
+      if(Array.isArray(value.statuses))await store.transaction('whatsapp-status',state=>{for(const status of value.statuses.slice(0,100))if(typeof status.id==='string'&&typeof status.status==='string')for(const conv of state.tenants[t.id].conversations)for(const msg of conv.messages)if(msg.provider_id===status.id)msg.status=status.status.slice(0,30);});
     }
     res.json({ok:true});
   });
@@ -226,9 +248,9 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
     const dataId=String(req.query['data.id']||req.body?.data?.id||'');
     if(!/^[0-9]{1,30}$/.test(dataId)||!providers.pixSignature({signature:req.get('x-signature'),requestId:req.get('x-request-id'),dataId}))d.fail('Assinatura inválida',401);
     const verified=await providers.getPayment(dataId);
-    await store.transaction('pix-webhook',state=>{for(const t of Object.values(state.tenants)){const p=t.payments.find(p=>p.id===dataId);if(!p)continue;if(verified.external_reference!==p.appointment_id||Math.round(verified.transaction_amount*100)!==p.amount_cents||verified.payment_method_id!=='pix')d.fail('Pagamento divergente',409);if(verified.status==='approved')d.settle(t,p);}});res.json({ok:true});
+    await store.transaction('pix-webhook',state=>{for(const t of Object.values(state.tenants)){const p=t.payments.find(p=>p.id===dataId);if(!p)continue;if(verified.external_reference!==p.appointment_id||Math.round(verified.transaction_amount*100)!==p.amount_cents||verified.payment_method_id!=='pix')d.fail('Pagamento divergente',409);const timestamp=Date.parse(verified.date_last_updated);if(Number.isFinite(timestamp)&&p.provider_updated_at&&timestamp<Date.parse(p.provider_updated_at))continue;d.reconcilePayment(t,p,verified.status);if(Number.isFinite(timestamp))p.provider_updated_at=new Date(timestamp).toISOString();}});res.json({ok:true});
   });
-  router.post('/api/webhooks/billing/mercadopago',async(req,res)=>{const dataId=String(req.query['data.id']||req.body?.data?.id||'');if(!/^[a-zA-Z0-9-]{1,80}$/.test(dataId)||!billing.billingSignature({signature:req.get('x-signature'),requestId:req.get('x-request-id'),dataId}))d.fail('Assinatura inválida',401);const verified=await billing.getSubscription(dataId);await store.transaction('billing-webhook',state=>{const t=state.tenants[verified.external_reference];if(!t||t.billing?.provider_id!==dataId)d.fail('Assinatura não encontrada',404);if(!['authorized','pending','paused','cancelled'].includes(verified.status))d.fail('Status de assinatura inválido');t.billing.status=verified.status;t.billing.updated_at=new Date().toISOString();d.audit(t,'billing-provider','billing.reconciled',dataId);});res.json({ok:true});});
+  router.post('/api/webhooks/billing/mercadopago',async(req,res)=>{const dataId=String(req.query['data.id']||req.body?.data?.id||'');if(!/^[a-zA-Z0-9-]{1,80}$/.test(dataId)||!billing.billingSignature({signature:req.get('x-signature'),requestId:req.get('x-request-id'),dataId}))d.fail('Assinatura inválida',401);const verified=await billing.getSubscription(dataId);await store.transaction('billing-webhook',state=>{const t=state.tenants[verified.external_reference];if(!t||t.billing?.provider_id!==dataId)d.fail('Assinatura não encontrada',404);if(!['authorized','pending','paused','cancelled'].includes(verified.status))d.fail('Status de assinatura inválido');t.billing.status=verified.status;t.billing.updated_at=new Date().toISOString();if(verified.status==='cancelled'){t.billing_request_key=null;t.billing_request_plan=null;}d.audit(t,'billing-provider','billing.reconciled',dataId);});res.json({ok:true});});
 
   router.use(express.static(resolve('public'),{index:'index.html',maxAge:0}));
   router.use('/api',(req,res)=>res.status(404).json({error:'Endpoint não encontrado'}));
@@ -250,6 +272,8 @@ if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).
   const app=createApp(store); const server=app.listen(Number(process.env.PORT||8793),process.env.HOST||'127.0.0.1',()=>console.log(JSON.stringify({event:'started',port:process.env.PORT||8793})));
   const stopWorker=startWorker(store);
   const stopBackups=startBackups(store);
-  async function stop(){stopWorker();stopBackups();server.close(async()=>{await store.tail;await store.close();process.exit(0);});setTimeout(()=>process.exit(1),20000).unref();}
-  process.on('SIGTERM',stop);process.on('SIGINT',stop);
+  let stopping=false;
+  async function stop(code=0){if(stopping)return;stopping=true;stopBackups();const drained=stopWorker();server.close(async()=>{await drained;await store.tail;await store.close();process.exit(code);});setTimeout(()=>process.exit(1),20000).unref();}
+  store.onUnavailable=()=>{void stop(1);};
+  process.on('SIGTERM',()=>stop());process.on('SIGINT',()=>stop());
 }

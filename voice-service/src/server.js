@@ -11,10 +11,11 @@ import WebSocket, { WebSocketServer } from 'ws';
 import { env, normalizeTenantId } from './config.js';
 import { GeminiVoiceProvider } from './provider.js';
 import { TenantVoiceStore, UsageStore } from './store.js';
+import {audioDurationMs} from './audio.js';
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true,maxPayload:env.maxWsBytes });
 const provider = new GeminiVoiceProvider({ apiKey: env.geminiApiKey });
 const tenantStore = new TenantVoiceStore(env.dataDir);
 const usageStore = new UsageStore(env.dataDir);
@@ -25,6 +26,7 @@ await tenantStore.init();
 await usageStore.init();
 
 app.disable('x-powered-by');
+app.set('trust proxy',1);
 app.use(express.json({ limit: '256kb' }));
 
 function secretsEqual(a, b) {
@@ -34,15 +36,19 @@ function secretsEqual(a, b) {
 }
 
 function apiAuth(req, res, next) {
-  if (!env.sharedSecret) return next();
-  if (!secretsEqual(req.get('x-agendazap-secret'), env.sharedSecret)) {
+  if(req.path==='/health')return next();
+  if (env.sharedSecret && !secretsEqual(req.get('x-agendazap-secret'), env.sharedSecret)) {
     return res.status(401).json({ error: 'unauthorized' });
   }
+  const authorized=req.get('x-agendazap-tenant');
+  const target=req.path.match(/^\/(?:config|usage|transcribe|tts|respond)\/([a-zA-Z0-9_-]{1,64})$/)?.[1];
+  if(authorized&&authorized!==target)return res.status(403).json({error:'tenant_mismatch'});
   next();
 }
 
 const rateState = new Map();
 function simpleRateLimit(req, res, next) {
+  if(req.path==='/health')return next();
   const key = req.ip || 'unknown';
   const now = Date.now();
   const current = rateState.get(key) || { windowStarted: now, count: 0 };
@@ -53,13 +59,13 @@ function simpleRateLimit(req, res, next) {
   }
 
   current.count += 1;
-  rateState.set(key, current);
+  if(!rateState.has(key)&&rateState.size>=10000)rateState.delete(rateState.keys().next().value);rateState.set(key, current);
 
   if (current.count > 120) return res.status(429).json({ error: 'rate_limit' });
   next();
 }
 
-app.use('/api/voice', simpleRateLimit, apiAuth);
+app.use('/api/voice', apiAuth,simpleRateLimit);
 
 app.get('/healthz', (req, res) => {
   res.json({
@@ -111,6 +117,7 @@ app.post('/api/voice/transcribe/:tenantId', upload.single('audio'), async (req, 
     if (!req.file) return res.status(400).json({ error: 'audio_required' });
 
     const config = await tenantStore.get(tenantId);
+    const durationMs=await audioDurationMs(req.file.path);
     const result = await provider.transcribeFile({
       filePath: req.file.path,
       mimeType: req.file.mimetype || 'application/octet-stream',
@@ -123,7 +130,7 @@ app.post('/api/voice/transcribe/:tenantId', upload.single('audio'), async (req, 
       operation: 'transcribe_file',
       model: result.model,
       audioBytes: req.file.size,
-      audioDurationMs: Number(req.body?.duration_ms || 0),
+      audioDurationMs: durationMs,
       latencyMs,
       ok: true
     });
@@ -237,6 +244,7 @@ app.post('/api/voice/respond/:tenantId', async (req, res, next) => {
         });
       } catch (error) {
         payload.audioError = 'tts_unavailable';
+        await usageStore.append({tenantId,operation:'respond_tts',model:config.ttsModel,ttsCharacters:canonicalText.length,latencyMs:Date.now()-started,ok:false}).catch(()=>{});
         if (config.responseMode === 'audio_only') payload.text = canonicalText;
       }
     }
@@ -251,25 +259,27 @@ app.get('/api/voice/usage/:tenantId', async (req, res, next) => {
 });
 
 app.use((error, req, res, next) => {
-  const status = error.statusCode || (error.code === 'LIMIT_FILE_SIZE' ? 413 : 400);
+  const reported=Number(error.statusCode||error.status);const status=error.code==='LIMIT_FILE_SIZE'?413:reported>=400&&reported<=599?reported:400;
   res.status(status).json({
     error: error.code || 'voice_error',
-    message: error.message || 'Falha no Voice AI'
+    message: status===429?'Limite do provedor de voz atingido. Tente novamente.':status>=500?'Serviço de voz temporariamente indisponível.':'Não foi possível processar a solicitação de voz.'
   });
 });
 
 server.on('upgrade', async (req, socket, head) => {
+  socket.on('error',()=>socket.destroy());
   try {
     const url = new URL(req.url, 'http://localhost');
     const match = url.pathname.match(/^\/ws\/voice\/live\/([a-zA-Z0-9_-]{1,64})$/);
     if (!match) return socket.destroy();
 
-    if (env.sharedSecret && !secretsEqual(url.searchParams.get('token'), env.sharedSecret)) {
+    if (env.sharedSecret && !secretsEqual(req.headers['x-agendazap-secret']||url.searchParams.get('token'), env.sharedSecret)) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       return socket.destroy();
     }
 
     const tenantId = normalizeTenantId(match[1]);
+    if(req.headers['x-agendazap-tenant']&&req.headers['x-agendazap-tenant']!==tenantId)return socket.destroy();
     const config = await tenantStore.get(tenantId);
 
     wss.handleUpgrade(req, socket, head, client => {
@@ -283,21 +293,28 @@ server.on('upgrade', async (req, socket, head) => {
 wss.on('connection', (client, req, context) => {
   const { tenantId, config } = context;
   const started = Date.now();
+  let failed=false,ready=false,metered=false;
+  const meter=()=>{if(metered)return;metered=true;usageStore.append({tenantId,operation:'transcribe_live',model:config.transcribeLiveModel,audioDurationMs:Date.now()-started,latencyMs:Date.now()-started,ok:ready&&!failed}).catch(()=>{});};
+  client.on('error',()=>{failed=true;client.terminate();});
+  client.on('close',meter);
 
   if (!provider.configured) {
+    failed=true;
     client.close(1011, 'GEMINI_API_KEY não configurada');
     return;
   }
 
-  const upstream = new WebSocket(provider.liveWebSocketUrl());
+  const upstream = new WebSocket(provider.liveWebSocketUrl(),{maxPayload:env.maxWsBytes});
 
   upstream.on('open', () => {
+    if(client.readyState!==WebSocket.OPEN){upstream.close();return;}
     upstream.send(JSON.stringify(provider.liveTranscribeSetup(config)));
     client.send(JSON.stringify({ type: 'ready', model: config.transcribeLiveModel }));
   });
 
   client.on('message', raw => {
     try {
+      if(upstream.readyState!==WebSocket.OPEN){if(client.readyState===WebSocket.OPEN)client.send(JSON.stringify({type:'error',error:'upstream_not_ready'}));return;}
       const message = JSON.parse(raw.toString());
 
       if (message.type === 'audio' && typeof message.data === 'string') {
@@ -317,7 +334,7 @@ wss.on('connection', (client, req, context) => {
         upstream.send(JSON.stringify({ realtimeInput: { activityEnd: {} } }));
       }
     } catch {
-      client.send(JSON.stringify({ type: 'error', error: 'invalid_message' }));
+      if(client.readyState===WebSocket.OPEN)client.send(JSON.stringify({ type: 'error', error: 'invalid_message' }));
     }
   });
 
@@ -344,26 +361,22 @@ wss.on('connection', (client, req, context) => {
       }
 
       if (message.setupComplete) {
+        ready=true;
         client.send(JSON.stringify({ type: 'setup_complete' }));
       }
     } catch {}
   });
 
   upstream.on('error', () => {
+    failed=true;
     if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify({ type: 'error', error: 'upstream_error' }));
   });
 
-  upstream.on('close', () => {
+  upstream.on('close', code => {
+    if(code!==1000)failed=true;
     if (client.readyState === WebSocket.OPEN) client.close(1000, 'upstream_closed');
 
-    usageStore.append({
-      tenantId,
-      operation: 'transcribe_live',
-      model: config.transcribeLiveModel,
-      audioDurationMs: Date.now() - started,
-      latencyMs: Date.now() - started,
-      ok: true
-    }).catch(() => {});
+    meter();
   });
 
   client.on('close', () => {

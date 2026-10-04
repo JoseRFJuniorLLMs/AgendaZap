@@ -1,12 +1,14 @@
 import path from 'node:path';
+function positiveInteger(name,fallback,max=Number.MAX_SAFE_INTEGER){const raw=process.env[name]??String(fallback);if(!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<1||Number(raw)>max)throw new Error(`${name} deve ser um inteiro positivo até ${max}`);return Number(raw);}
 
 export const env = {
-  port: Number.parseInt(process.env.VOICE_PORT || '3001', 10),
+  port: positiveInteger('VOICE_PORT',3001,65535),
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   sharedSecret: process.env.VOICE_SHARED_SECRET || '',
   dataDir: process.env.VOICE_DATA_DIR || path.resolve('data'),
-  maxAudioBytes: Number.parseInt(process.env.VOICE_MAX_AUDIO_BYTES || String(20 * 1024 * 1024), 10),
-  maxTtsChars: Number.parseInt(process.env.VOICE_MAX_TTS_CHARS || '4000', 10),
+  maxAudioBytes: positiveInteger('VOICE_MAX_AUDIO_BYTES',20*1024*1024),
+  maxTtsChars: positiveInteger('VOICE_MAX_TTS_CHARS',4000),
+  maxWsBytes: positiveInteger('VOICE_MAX_WS_BYTES',1024*1024),
   transcribeModel: process.env.GEMINI_TRANSCRIBE_MODEL || 'gemini-3.5-transcribe',
   transcribeLiveModel: process.env.GEMINI_TRANSCRIBE_LIVE_MODEL || 'gemini-3.5-transcribe-live',
   ttsModel: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-lite-tts',

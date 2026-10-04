@@ -31,7 +31,7 @@ PUT /api/voice/config/:tenantId
 
 POST /api/voice/transcribe/:tenantId
 
-Multipart com campo audio e duration_ms opcional.
+Multipart com campo audio. A duração é medida no arquivo por ffprobe; duration_ms enviado pelo cliente é ignorado. A imagem Docker inclui ffmpeg/ffprobe.
 
 POST /api/voice/tts/:tenantId
 

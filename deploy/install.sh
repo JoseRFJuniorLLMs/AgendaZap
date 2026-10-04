@@ -29,6 +29,7 @@ if ! sudo grep -q '^BACKUP_KEY_FILE=' /etc/agendazap.env; then
   echo 'BACKUP_KEY_FILE=/etc/agendazap-backup.key' | sudo tee -a /etc/agendazap.env >/dev/null
 fi
 sudo install -m 644 deploy/agendazap.service /etc/systemd/system/agendazap.service
+sudo python3 deploy/configure-voice-proxy.py
 sudo install -m 644 deploy/nginx-agendazap.conf /etc/nginx/snippets/nginx-agendazap.conf
 sudo python3 - <<'PY'
 from pathlib import Path
