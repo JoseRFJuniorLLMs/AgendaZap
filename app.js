@@ -9,18 +9,27 @@
   const navItems = [...document.querySelectorAll('.nav-item')];
   const views = [...document.querySelectorAll('.view')];
 
+  function syncSidebarA11y(collapsed) {
+    if (!sidebarToggle) return;
+    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Recolher menu');
+    sidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    sidebarToggle.title = collapsed ? 'Expandir menu' : 'Recolher menu';
+  }
+
   const savedSidebar = localStorage.getItem('agendazap-sidebar');
-  if (savedSidebar === 'collapsed') shell.classList.add('sidebar-collapsed');
+  const initiallyCollapsed = savedSidebar === 'collapsed';
+  shell.classList.toggle('sidebar-collapsed', initiallyCollapsed);
+  syncSidebarA11y(initiallyCollapsed);
 
   sidebarToggle?.addEventListener('click', () => {
     const collapsed = shell.classList.toggle('sidebar-collapsed');
     localStorage.setItem('agendazap-sidebar', collapsed ? 'collapsed' : 'expanded');
-    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Recolher menu');
-    sidebarToggle.title = collapsed ? 'Expandir menu' : 'Recolher menu';
+    syncSidebarA11y(collapsed);
     sidebarToggleIcon.textContent = '‹';
   });
 
-  const preferredTheme = localStorage.getItem('agendazap-theme') ||
+  const preferredTheme = document.documentElement.dataset.theme ||
+    localStorage.getItem('agendazap-theme') ||
     (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
   function applyTheme(theme) {
