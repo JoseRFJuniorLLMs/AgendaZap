@@ -1,6 +1,6 @@
 # SPEC-0014 — Voice AI
 
-**Status:** Draft  
+**Status:** Implemented — Voice Layer MVP  
 **Versão:** 0.1.0  
 **Produto:** AgendaZap
 
@@ -318,3 +318,42 @@ P0 de voz é considerado concluído quando:
 8. falha de TTS não impede resposta;
 9. custo de voz é medido;
 10. modo de resposta é configurável por tenant.
+
+
+## 18. Estado da implementação
+
+### Implementado
+
+- `voice-service/src/provider.js`: adapter Gemini;
+- `voice-service/src/server.js`: HTTP + WebSocket;
+- `voice-service/src/store.js`: configuração e metering por tenant;
+- `POST /api/voice/transcribe/:tenantId`;
+- `POST /api/voice/tts/:tenantId`;
+- `POST /api/voice/respond/:tenantId`;
+- `GET/PUT /api/voice/config/:tenantId`;
+- `GET /api/voice/usage/:tenantId`;
+- `WS /ws/voice/live/:tenantId`;
+- transcrição Live interim + final;
+- custom vocabulary;
+- modo SMART/VERBATIM;
+- TTS Gemini 3.8 via Interactions API;
+- fallback de TTS para texto;
+- configuração de `responseMode`;
+- Docker/Compose;
+- healthcheck;
+- proxy Nginx;
+- testes;
+- frontend conectado aos endpoints de config, STT, TTS e usage.
+
+### Dependência externa à SPEC-0014
+
+Os itens abaixo exigem o core funcional do AgendaZap, que ainda não existe no repositório:
+
+1. intent layer real;
+2. consulta de disponibilidade;
+3. booking hold;
+4. appointment;
+5. webhook WhatsApp;
+6. envio da resposta de texto/áudio pelo WhatsApp.
+
+A Voice Layer foi implementada de forma independente para que o core futuro consuma seus contratos sem conhecer detalhes da Google.
