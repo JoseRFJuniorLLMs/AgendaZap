@@ -3,7 +3,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-fund --no-audit
 COPY src ./src
-COPY proto ./proto
 COPY public ./public
 RUN mkdir /app/data && chown node:node /app/data
 USER node
