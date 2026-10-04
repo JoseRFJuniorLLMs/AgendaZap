@@ -1,0 +1,17 @@
+{
+  "name": "AgendaZap Revenue Autopilot",
+  "short_name": "AgendaZap",
+  "description": "Atendimento, agendamento e recuperação de receita pelo WhatsApp.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#25d366",
+  "icons": [
+    {
+      "src": "/assets/icon-agendazap.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
