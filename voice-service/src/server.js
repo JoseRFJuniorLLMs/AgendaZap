@@ -76,6 +76,17 @@ app.get('/healthz', (req, res) => {
   });
 });
 
+app.get('/api/voice/health', (req, res) => {
+  res.json({
+    ok: true,
+    provider: 'gemini',
+    configured: provider.configured,
+    transcribeModel: env.transcribeModel,
+    ttsModel: env.ttsModel,
+    ttsPremiumModel: env.ttsPremiumModel
+  });
+});
+
 app.get('/api/voice/config/:tenantId', async (req, res, next) => {
   try { res.json(await tenantStore.get(req.params.tenantId)); }
   catch (error) { next(error); }
