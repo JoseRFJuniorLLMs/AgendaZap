@@ -164,7 +164,7 @@
           <article class="panel">
             <div class="panel-head">
               <div><p class="eyebrow">VOICE AI</p><h3>Modo de resposta</h3></div>
-              <span class="status confirmed">Gemini</span>
+              <span class="status waiting" id="voiceApiStatus">Verificando…</span>
             </div>
 
             <div class="voice-models">
@@ -182,8 +182,30 @@
             </fieldset>
 
             <div class="voice-setting-row">
-              <div><strong>Vocabulário personalizado</strong><small>Melhora termos como balayage, barboterapia e nomes dos profissionais.</small></div>
+              <div><strong>Vocabulário personalizado</strong><small id="voiceVocabularySummary">Melhora termos como balayage, barboterapia e nomes dos profissionais.</small></div>
               <button class="secondary-btn" type="button" data-action="voice-vocabulary">Configurar</button>
+            </div>
+
+            <div class="voice-test-box">
+              <div class="voice-test-head">
+                <div><strong>Teste real do Voice AI</strong><small>Usa o backend Gemini quando a API estiver configurada.</small></div>
+              </div>
+              <div class="voice-test-actions">
+                <label class="file-btn">
+                  <input type="file" id="voiceTestFile" accept="audio/*" />
+                  <span>Selecionar áudio</span>
+                </label>
+                <button class="secondary-btn" type="button" data-action="voice-transcribe">Transcrever</button>
+                <button class="primary-btn" type="button" data-action="voice-tts">Ouvir resposta</button>
+              </div>
+              <p class="voice-test-result" id="voiceTestResult">Nenhum teste executado.</p>
+              <audio id="voiceTestPlayer" controls hidden></audio>
+            </div>
+
+            <div class="voice-usage-grid">
+              <div><span>Requisições</span><strong id="voiceUsageRequests">0</strong></div>
+              <div><span>Erros</span><strong id="voiceUsageErrors">0</strong></div>
+              <div><span>Caracteres TTS</span><strong id="voiceUsageChars">0</strong></div>
             </div>
           </article>
 
