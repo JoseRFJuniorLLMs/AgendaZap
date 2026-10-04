@@ -83,6 +83,27 @@ Arquitetura oficial de voz:
 
 A resposta é sempre produzida primeiro como texto canônico. O áudio é uma representação dessa resposta, nunca uma fonte paralela de decisão.
 
+### Implementação atual do Voice AI
+
+A camada de voz já possui:
+
+- serviço Node.js isolado em `voice-service/`;
+- configuração por tenant;
+- transcrição de arquivo;
+- transcrição Live por WebSocket;
+- custom vocabulary;
+- smart transcription;
+- TTS padrão e premium;
+- fallback para texto;
+- metering por tenant;
+- testes de store/config;
+- Docker e healthcheck;
+- proxy HTTP/WebSocket no Nginx;
+- tela de teste real de STT/TTS no frontend;
+- CI cobrindo sintaxe, testes e containers.
+
+O que ainda depende do próximo backend do AgendaZap é a etapa **transcrição → intenção → agenda real → booking → resposta WhatsApp**. A Voice Layer já entrega os contratos para essa integração.
+
 ## Arquitetura
 
 ```text
