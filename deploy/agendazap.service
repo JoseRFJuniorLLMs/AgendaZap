@@ -1,0 +1,27 @@
+[Unit]
+Description=AgendaZap scheduling and customer service
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=web2a
+WorkingDirectory=/home/web2a/AgendaZap
+EnvironmentFile=/etc/agendazap.env
+ExecStart=/usr/bin/flock -n /home/web2a/AgendaZap/data/service.lock /usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/web2a/AgendaZap/data
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
