@@ -1,138 +1,152 @@
 # SPEC-0004 — Agenda, PIX e Receita
 
 **Status:** Draft  
-**Versão:** 0.1.0
+**Versão:** 0.2.0
 
-## 1. Motor de agenda
+## 1. Disponibilidade
 
-A disponibilidade de um slot é derivada de:
+Slot válido depende de:
 
-1. regra semanal do profissional;
-2. serviço escolhido;
-3. duração;
-4. intervalo/buffer;
-5. bloqueios;
-6. agendamentos existentes;
-7. antecedência mínima;
-8. horizonte máximo de agendamento.
+1. unidade;
+2. serviço;
+3. profissional;
+4. duração;
+5. buffer;
+6. disponibilidade;
+7. bloqueios;
+8. recursos exigidos;
+9. appointments;
+10. holds;
+11. antecedência;
+12. horizonte de agenda.
 
 ## 2. Double booking
 
-É proibido confirmar dois agendamentos sobrepostos do mesmo profissional.
+Proibido sobrepor:
 
-A proteção deve existir no banco, não apenas no frontend.
+- profissional;
+- sala;
+- cadeira;
+- equipamento;
+- qualquer recurso exclusivo.
 
-## 3. Reserva temporária
+Proteção obrigatória no banco.
 
-Quando houver sinal:
+## 3. Booking hold
 
-1. cria `booking_hold`;
-2. bloqueia slot por TTL;
-3. gera cobrança PIX;
-4. pagamento confirmado dentro do prazo -> appointment `confirmed`;
-5. TTL expirado -> hold liberado.
+```text
+slot -> hold TTL -> pagamento?
+                    |
+          +---------+---------+
+          |                   |
+        pago               expira
+          |                   |
+     confirmed             libera
+```
+
+Hold deve reservar profissional e recursos.
 
 ## 4. PIX
 
-A camada de pagamento deve ser provider-agnostic.
+Adapter:
 
-Interface conceitual:
+- create_charge
+- get_charge
+- cancel_charge
+- refund_charge
+- handle_webhook
 
-```text
-create_charge()
-get_charge()
-refund_charge()
-handle_webhook()
-```
+Webhooks:
 
-Campos esperados:
+- autenticados;
+- idempotentes;
+- persistidos;
+- reconciliados.
 
-- provider;
-- reference;
-- amount;
-- status;
-- qr_code;
-- copy_paste_code;
-- expires_at.
+Frontend nunca confirma pagamento.
 
-## 5. Webhook
+## 5. Políticas comerciais
 
-Requisitos:
+Por tenant:
 
-- validar autenticidade;
-- idempotência;
-- persistir evento bruto de forma segura;
-- reconciliar pagamento;
-- emitir evento interno.
-
-Nunca confiar em confirmação do frontend.
-
-## 6. Cancelamento
-
-Política configurável por tenant:
-
-- prazo mínimo;
-- retenção do sinal;
-- crédito para reagendamento;
-- reembolso total/parcial.
-
-O AgendaZap executa a política configurada, sem inventar decisões comerciais.
-
-## 7. Lista de espera
-
-Cliente pode declarar:
-
-- serviço;
-- profissional opcional;
-- datas;
-- janela de horários.
-
-Quando surgir vaga:
-
-1. identificar candidatos;
-2. ordenar por regra simples;
-3. notificar;
-4. primeiro que confirmar recebe hold;
-5. demais deixam de receber aquela vaga.
-
-## 8. Recuperação de cancelamento
-
-Ao cancelar um horário futuro, emitir:
-
-`slot.became_available`
-
-Esse evento pode disparar:
-
-- lista de espera;
-- clientes interessados;
-- clientes elegíveis a retorno.
-
-## 9. No-show
-
-Estados:
-
-- confirmado;
-- checked-in;
-- completed;
+- depósito fixo ou percentual;
+- prazo de pagamento;
+- cancelamento;
+- crédito;
+- reembolso;
+- tolerância;
 - no-show.
 
-O sistema deve permitir marcação manual e, posteriormente, automação por regra.
+## 6. Lista de espera
 
-## 10. Receita
+Pode filtrar por:
+
+- serviço;
+- profissional;
+- unidade;
+- datas;
+- janela de horário.
+
+Primeiro cliente que aceitar recebe hold temporário.
+
+## 7. Pacotes e créditos
+
+Suportar:
+
+### packages
+Pacote comercial, exemplo: 10 sessões.
+
+### package_items
+Serviços/créditos incluídos.
+
+### customer_credits
+Saldo do cliente.
+
+Consumo deve ser transacional e auditável.
+
+## 8. Memberships
+
+Assinatura recorrente pode conceder:
+
+- créditos;
+- serviços;
+- descontos;
+- prioridade;
+- benefícios.
+
+O motor deve ser independente do PSP e permitir meios recorrentes suportados pelo provider escolhido.
+
+## 9. Receita
 
 Separar:
 
-- `expected_revenue`: valor dos agendamentos;
-- `received_revenue`: pagamentos efetivamente reconhecidos;
-- `recovered_revenue`: receita atribuída a campanhas ou preenchimento de cancelamento.
+- expected_revenue;
+- received_revenue;
+- recovered_revenue;
+- recurring_revenue;
+- refunded_revenue.
+
+## 10. Revenue attribution
+
+Uma receita recuperada precisa de:
+
+- oportunidade;
+- ação;
+- mensagem/canal;
+- appointment convertido;
+- valor;
+- janela de atribuição.
+
+Evitar dupla atribuição.
 
 ## 11. Auditoria financeira
 
-Toda mudança de:
+Registrar alteração de:
 
-- valor;
+- preço;
+- crédito;
 - pagamento;
-- reembolso;
-- cancelamento com impacto financeiro
-
-deve gerar evento de auditoria.
+- refund;
+- membership;
+- pacote;
+- cancelamento com impacto financeiro.
