@@ -1,166 +1,164 @@
 # SPEC-0005 — Segurança e LGPD
 
 **Status:** Draft  
-**Versão:** 0.1.0
+**Versão:** 0.2.0
 
 ## 1. Princípios
 
-- minimização de dados;
+- data minimization;
 - privacy by design;
 - least privilege;
-- isolamento entre tenants;
-- criptografia em trânsito;
-- segredo fora do código;
-- logs sem dados excessivos;
-- trilha de auditoria em ações críticas.
+- tenant isolation;
+- defense in depth;
+- encryption in transit;
+- secret management;
+- auditabilidade;
+- saída de IA sempre não confiável.
 
-## 2. Dados do MVP
+## 2. Dados MVP
 
-Dados necessários:
+Necessários:
 
 - nome;
 - telefone;
-- serviço;
-- profissional;
-- data/hora;
-- eventos de atendimento;
-- status de pagamento;
+- agendamentos;
+- serviços;
+- eventos de comunicação;
+- pagamentos;
 - consentimentos.
 
-Evitar no MVP:
+Evitar:
 
 - prontuário;
 - diagnóstico;
-- laudos;
-- informações clínicas;
-- documentos pessoais sem necessidade.
+- documentos sem finalidade;
+- dados sensíveis não necessários.
 
-## 3. Multi-tenancy
+## 3. Consentimentos
 
-Toda consulta autenticada deve ser escopada por `tenant_id`.
+Não usar um único `consent_status`.
 
-Requisitos:
+Modelo por finalidade:
 
-- tenant derivado da identidade autenticada;
-- cliente nunca escolhe arbitrariamente tenant em endpoint privilegiado;
-- testes automáticos de isolamento.
+- transactional;
+- marketing;
+- review_request;
+- reactivation;
+- profiling, se futuramente aplicável.
 
-## 4. Autenticação
+Registrar:
 
-Painel administrativo:
+- finalidade;
+- base aplicável;
+- origem;
+- timestamp;
+- versão do texto;
+- concessão/revogação;
+- evidência.
 
-- sessão segura;
-- senha com hash forte ou provedor de identidade;
-- MFA recomendado para administradores;
-- rate limit;
-- proteção a credential stuffing.
+## 4. Multi-tenancy
+
+- tenant derivado da sessão/token;
+- tenant nunca confiado do payload privilegiado;
+- queries obrigatoriamente escopadas;
+- testes negativos entre tenants;
+- objetos externos mapeados para tenant internamente.
 
 ## 5. RBAC
 
-Papéis iniciais:
+- owner
+- manager
+- professional
+- attendant
+- billing_admin
 
-### owner
-Acesso total ao tenant.
-
-### manager
-Agenda, clientes, relatórios e configuração operacional.
-
-### professional
-Agenda própria e informações necessárias ao atendimento.
-
-### attendant
-Conversas e agendamentos, sem configuração sensível.
+Acesso financeiro e integrações requer privilégios próprios.
 
 ## 6. Segredos
 
 Nunca versionar:
 
-- tokens do WhatsApp;
-- API keys de LLM;
-- credenciais de banco;
-- segredos de webhook;
-- tokens de pagamento.
-
-Usar variáveis de ambiente ou secret manager.
+- tokens;
+- API keys;
+- DB passwords;
+- webhook secrets;
+- payment credentials;
+- private keys.
 
 ## 7. Webhooks
 
-- assinatura/autenticidade;
-- timestamp quando oferecido;
+- assinatura;
+- timestamp quando disponível;
 - replay protection;
-- idempotency key;
+- idempotência;
+- payload validation;
+- armazenamento do hash/event ID;
 - rate limiting;
-- validação estrita de payload.
+- processamento assíncrono.
 
-## 8. Consentimento e opt-out
+## 8. IA
 
-Guardar evidência de:
-
-- canal;
-- finalidade;
-- data;
-- status.
-
-Opt-out deve impedir mensagens promocionais futuras, preservando comunicações transacionais permitidas e necessárias conforme configuração e base aplicável.
+- tools allowlist;
+- schema validation;
+- RBAC antes da tool;
+- tenant binding fora do prompt;
+- prompt injection não altera privilégios;
+- nenhuma operação financeira irreversível baseada somente na saída do modelo;
+- PII minimizada no contexto.
 
 ## 9. Retenção
 
-A política de retenção deve ser configurável e documentada.
+Políticas separadas para:
 
-Separar:
-
-- registros operacionais;
-- eventos financeiros;
-- logs técnicos;
 - mensagens;
-- auditoria.
+- eventos operacionais;
+- financeiro;
+- auditoria;
+- logs;
+- analytics.
 
 ## 10. Direitos do titular
 
-Preparar fluxos administrativos para:
+Preparar fluxos para:
 
-- confirmação de tratamento;
 - acesso;
 - correção;
-- anonimização/exclusão quando aplicável;
-- revogação de consentimento;
-- portabilidade quando aplicável.
+- revogação;
+- exportação;
+- anonimização/exclusão quando aplicável.
 
-## 11. Logs
+## 11. Backup e recuperação
 
-Não registrar:
-
-- tokens;
-- credenciais;
-- QR PIX completo quando desnecessário;
-- conteúdo integral de mensagens em logs técnicos;
-- prompts contendo dados desnecessários.
-
-## 12. Backup
-
-- backup automático;
-- teste periódico de restauração;
-- retenção definida;
+- backup automatizado;
 - criptografia;
-- acesso mínimo.
+- retenção;
+- restore test;
+- RPO/RTO definidos antes do primeiro tenant pagante.
 
-## 13. Auditoria
+## 12. Auditoria
 
 Eventos críticos:
 
 - login;
-- alteração de usuário/role;
-- criação/cancelamento de appointment;
-- alteração de preço;
-- pagamento;
-- reembolso;
-- exportação de dados;
-- alteração de integrações.
+- role change;
+- integration change;
+- price change;
+- booking mutation;
+- payment/refund;
+- consent change;
+- export;
+- billing change.
 
-## 14. Segurança de IA
+## 13. Segurança operacional
 
-- tools allowlist;
-- validação de argumentos;
-- prompt injection não concede novas permissões;
-- saída do modelo tratada como não confiável;
-- nenhuma operação financeira executada apenas porque o modelo pediu.
+Antes de produção:
+
+- headers;
+- CSRF quando aplicável;
+- rate limit;
+- brute-force protection;
+- dependency scanning;
+- secret scanning;
+- SAST;
+- migrations revisáveis;
+- logs sem segredos.
