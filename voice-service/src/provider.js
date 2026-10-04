@@ -64,33 +64,36 @@ export class GeminiVoiceProvider {
 
     const model = premium || config.usePremiumTts ? config.ttsPremiumModel : config.ttsModel;
 
-    const response = await this.client.models.generateContent({
+    const interaction = await this.client.interactions.create({
       model,
-      contents: [{
-        role: 'user',
-        parts: [{
+      input: [{
+        type: 'user_input',
+        content: [{
+          type: 'text',
           text,
-          speechMetadata: { style: style || config.style || '' }
+          annotations: [{
+            type: 'speech_metadata',
+            style: style || config.style || ''
+          }]
         }]
       }],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: { voice: voice || config.voice || 'Kore' }
-        }
+      response_format: { type: 'audio' },
+      generation_config: {
+        speech_config: [
+          { voice: voice || config.voice || 'Kore' }
+        ]
       }
     });
 
-    const part = response.candidates?.[0]?.content?.parts?.find(item => item.inlineData?.data);
-    if (!part?.inlineData?.data) {
+    if (!interaction.output_audio?.data) {
       const error = new Error('Gemini TTS não retornou áudio');
       error.statusCode = 502;
       throw error;
     }
 
     return {
-      audio: Buffer.from(part.inlineData.data, 'base64'),
-      mimeType: part.inlineData.mimeType || 'audio/wav',
+      audio: Buffer.from(interaction.output_audio.data, 'base64'),
+      mimeType: interaction.output_audio.mime_type || interaction.output_audio.mimeType || 'audio/wav',
       model
     };
   }
