@@ -15,6 +15,7 @@
   const toast = document.getElementById('toast');
   const mobileMore = document.querySelector('[data-action="mobile-more"]');
   const mobileMoreMenu = document.getElementById('mobileMoreMenu');
+  const voiceModeInputs = [...document.querySelectorAll('input[name="voiceMode"]')];
 
   const routes = {
     dashboard: '/',
@@ -159,6 +160,20 @@
     showToast(modal?.dataset.kind === 'lead'
       ? 'Lead salvo nesta demonstração. Integração com backend é o próximo passo.'
       : 'Agendamento salvo localmente na demonstração.');
+  });
+
+  const savedVoiceMode = localStorage.getItem('agendazap-voice-mode') || 'mirror_customer';
+  voiceModeInputs.forEach(input => {
+    input.checked = input.value === savedVoiceMode;
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      localStorage.setItem('agendazap-voice-mode', input.value);
+      showToast('Modo de voz salvo nesta demonstração.');
+    });
+  });
+
+  document.querySelector('[data-action="voice-vocabulary"]')?.addEventListener('click', () => {
+    showToast('Vocabulário por tenant será conectado ao backend do Voice AI.');
   });
 
   if ('serviceWorker' in navigator) {
