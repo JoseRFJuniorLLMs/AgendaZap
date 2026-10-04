@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: agendazap:local
     container_name: agendazap
     restart: unless-stopped
     ports:
