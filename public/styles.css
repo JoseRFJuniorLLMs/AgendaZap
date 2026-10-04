@@ -57,3 +57,156 @@
   .btn:hover{transform:none}
   .mock-window,.mock-badge{transform:none}
 }
+
+
+/* Sidebar desktop retrátil */
+.sidebar-collapse{
+  position:absolute;
+  top:28px;
+  right:-15px;
+  width:30px;
+  height:30px;
+  padding:0;
+  border-radius:50%;
+  background:var(--white);
+  border:1px solid var(--line);
+  box-shadow:0 4px 16px #173d2914;
+  z-index:2;
+  transition:transform .18s ease;
+}
+.shell.sidebar-collapsed{grid-template-columns:78px 1fr}
+.shell.sidebar-collapsed .sidebar{width:78px;padding:28px 10px}
+.shell.sidebar-collapsed .sidebar-collapse{transform:rotate(180deg)}
+.shell.sidebar-collapsed .sidebar .logo-official{padding:0;justify-content:center;margin-bottom:28px}
+.shell.sidebar-collapsed .sidebar .logo-official img{display:none}
+.shell.sidebar-collapsed .sidebar .logo-official::before{
+  content:"";
+  display:block;
+  width:42px;
+  height:42px;
+  background:url("./icon.svg") center/contain no-repeat;
+}
+.shell.sidebar-collapsed .business{justify-content:center;padding:8px;background:transparent;margin-bottom:22px}
+.shell.sidebar-collapsed .business-copy,
+.shell.sidebar-collapsed .nav-text,
+.shell.sidebar-collapsed .nav-label,
+.shell.sidebar-collapsed .sidebar-promo,
+.shell.sidebar-collapsed .profile-copy{display:none}
+.shell.sidebar-collapsed .nav-link{justify-content:center;padding:12px 8px}
+.shell.sidebar-collapsed .nav-link .icon{width:20px;height:20px}
+.shell.sidebar-collapsed .profile{flex-direction:column;padding:16px 0 0;gap:8px}
+.shell.sidebar-collapsed .profile button{margin-left:0}
+.shell.sidebar-collapsed .main{grid-column:2}
+
+/* CRM pagination */
+.pager{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding-top:18px;
+  margin-top:18px;
+  border-top:1px solid var(--line);
+}
+.crm-pager .btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+
+/* Billing plans */
+.billing-plans{align-items:stretch;margin-bottom:22px}
+.plan-card{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+.plan-card h3{
+  display:flex;
+  align-items:baseline;
+  gap:4px;
+  font-size:28px;
+  margin:14px 0 8px;
+}
+.plan-card h3 small{font-size:12px;color:var(--muted);font-weight:500}
+.plan-card .setup-price{font-size:12px;margin-bottom:14px}
+.plan-features{
+  list-style:none;
+  padding:0;
+  margin:14px 0 20px;
+  display:grid;
+  gap:10px;
+  flex:1;
+}
+.plan-features li{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  font-size:12px;
+  line-height:1.5;
+}
+.plan-features .icon{width:15px;height:15px;color:#699357;margin-top:1px}
+.recommended-plan{
+  position:absolute;
+  top:-12px;
+  right:18px;
+  background:var(--mint);
+  color:var(--green);
+  font-size:9px;
+  letter-spacing:1px;
+  font-weight:750;
+  padding:6px 9px;
+  border-radius:999px;
+}
+.billing-current-summary{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:12px;
+  padding:14px 16px;
+  margin-bottom:18px;
+  border:1px solid var(--line);
+  background:#f8faf6;
+  border-radius:13px;
+}
+.billing-current-summary .btn{margin-left:auto}
+.billing-current{margin-top:auto;justify-content:center}
+.billing-provider-note{margin-top:18px}
+
+@media(max-width:800px){
+  .sidebar-collapse{display:none}
+  .shell.sidebar-collapsed{grid-template-columns:1fr}
+  .shell.sidebar-collapsed .sidebar{
+    width:234px;
+    padding:32px 18px;
+  }
+  .shell.sidebar-collapsed .sidebar .logo-official{
+    padding:0 8px;
+    justify-content:flex-start;
+    margin-bottom:30px;
+  }
+  .shell.sidebar-collapsed .sidebar .logo-official img{display:block}
+  .shell.sidebar-collapsed .sidebar .logo-official::before{display:none}
+  .shell.sidebar-collapsed .business{
+    justify-content:flex-start;
+    padding:14px 12px;
+    background:#f6f8f2;
+    margin-bottom:28px;
+  }
+  .shell.sidebar-collapsed .business-copy,
+  .shell.sidebar-collapsed .nav-text,
+  .shell.sidebar-collapsed .profile-copy{display:block}
+  .shell.sidebar-collapsed .nav-label,
+  .shell.sidebar-collapsed .sidebar-promo{display:block}
+  .shell.sidebar-collapsed .nav-link{
+    justify-content:flex-start;
+    padding:12px 14px;
+  }
+  .shell.sidebar-collapsed .nav-link .icon{width:17px;height:17px}
+  .shell.sidebar-collapsed .profile{
+    flex-direction:row;
+    padding:20px 7px 0;
+    gap:10px;
+  }
+  .shell.sidebar-collapsed .profile button{margin-left:auto}
+  .pager{align-items:flex-start;flex-direction:column}
+  .pager .flex{width:100%}
+  .pager .btn{flex:1}
+}
