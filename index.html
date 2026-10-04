@@ -74,7 +74,7 @@
             <span id="themeIcon">☾</span>
             <span id="themeLabel">Escuro</span>
           </button>
-          <button class="primary-btn">+ Novo agendamento</button>
+          <button class="primary-btn" data-action="new-appointment">+ Novo agendamento</button>
         </div>
       </header>
 
@@ -101,7 +101,7 @@
 
         <div class="two-col">
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">HOJE</p><h3>Próximos atendimentos</h3></div><button class="text-btn">Ver agenda</button></div>
+            <div class="panel-head"><div><p class="eyebrow">HOJE</p><h3>Próximos atendimentos</h3></div><button class="text-btn" data-action="view-agenda">Ver agenda</button></div>
             <div class="appointment"><time>09:30</time><div><strong>Marina Souza</strong><span>Corte + escova • Ana</span></div><span class="status confirmed">Confirmado</span></div>
             <div class="appointment"><time>10:45</time><div><strong>Carla Lima</strong><span>Manicure • Júlia</span></div><span class="status paid">Sinal pago</span></div>
             <div class="appointment"><time>12:00</time><div><strong>Paula Martins</strong><span>Coloração • Ana</span></div><span class="status waiting">Aguardando</span></div>
@@ -128,7 +128,7 @@
             <div class="price"><span>R$</span><strong>149</strong><small>/mês</small></div>
             <p class="setup-price">Implantação: <strong>R$ 297</strong></p>
             <ul><li>Agenda e serviços</li><li>Atendimento pelo WhatsApp</li><li>Lembretes automáticos</li><li>Dashboard básico</li></ul>
-            <button class="secondary-btn">Plano fundador</button>
+            <button class="secondary-btn" data-plan="Fundador">Plano fundador</button>
           </article>
 
           <article class="price-card featured">
@@ -137,7 +137,7 @@
             <div class="price"><span>R$</span><strong>249</strong><small>/mês</small></div>
             <p class="setup-price">Implantação: <strong>R$ 597</strong></p>
             <ul><li>Tudo do Fundador</li><li>PIX e confirmação de sinal</li><li>Lista de espera</li><li>Recuperação de cancelamentos</li><li>Clientes inativos</li><li>Receita recuperada no dashboard</li></ul>
-            <button class="primary-btn full">Começar por R$ 597</button>
+            <button class="primary-btn full" data-plan="Profissional">Começar por R$ 597</button>
           </article>
 
           <article class="price-card">
@@ -145,7 +145,7 @@
             <div class="price"><span>R$</span><strong>397</strong><small>/mês</small></div>
             <p class="setup-price">Implantação: <strong>R$ 997</strong></p>
             <ul><li>Tudo do Profissional</li><li>Revenue Engine avançado</li><li>Pacotes e créditos</li><li>Recursos compartilhados</li><li>Analytics e automações avançadas</li><li>Suporte prioritário</li></ul>
-            <button class="secondary-btn">Escolher Pro</button>
+            <button class="secondary-btn" data-plan="Pro">Escolher Pro</button>
           </article>
         </div>
         <div class="pricing-note"><strong>Oferta principal:</strong> R$ 597 de implantação + R$ 249/mês. Uma operação com ticket médio de R$ 100 precisa recuperar apenas 3 clientes no mês para o software se pagar.</div>
@@ -157,6 +157,63 @@
       <section class="view placeholder" id="view-financeiro"><h2>Financeiro</h2><p>PIX, sinal, pagamentos, receita prevista, recebida e recuperada.</p></section>
     </main>
   </div>
+
+    <nav class="mobile-nav" aria-label="Navegação móvel">
+      <button data-view="dashboard"><span>⌂</span><small>Início</small></button>
+      <button data-view="agenda"><span>▦</span><small>Agenda</small></button>
+      <button data-view="clientes"><span>◎</span><small>Clientes</small></button>
+      <button data-view="planos"><span>◇</span><small>Planos</small></button>
+    </nav>
+
+    <dialog class="action-modal" id="actionModal">
+      <form method="dialog" class="modal-card" id="modalForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">AGENDAZAP</p>
+            <h2 id="modalTitle">Novo agendamento</h2>
+          </div>
+          <button type="button" class="icon-btn" data-close-modal aria-label="Fechar">×</button>
+        </div>
+
+        <label>
+          <span>Nome</span>
+          <input name="name" required autocomplete="name" />
+        </label>
+
+        <label>
+          <span>WhatsApp</span>
+          <input name="phone" required inputmode="tel" autocomplete="tel" placeholder="(61) 99999-9999" />
+        </label>
+
+        <label data-field="service">
+          <span>Serviço</span>
+          <input name="service" placeholder="Ex.: Corte + escova" />
+        </label>
+
+        <label data-field="plan" class="hidden">
+          <span>Plano</span>
+          <input id="modalPlan" name="plan" readonly />
+        </label>
+
+        <label data-field="plan" class="hidden">
+          <span>Estabelecimento</span>
+          <input name="business" placeholder="Nome do estabelecimento" />
+        </label>
+
+        <label data-field="plan" class="hidden">
+          <span>E-mail</span>
+          <input name="email" type="email" autocomplete="email" placeholder="voce@empresa.com" />
+        </label>
+
+        <div class="modal-actions">
+          <button type="button" class="secondary-btn" data-close-modal>Cancelar</button>
+          <button class="primary-btn" type="submit">Salvar</button>
+        </div>
+        <p class="modal-note">Ambiente de demonstração: os dados são salvos apenas neste navegador.</p>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="./app.js"></script>
 </body>
 </html>
