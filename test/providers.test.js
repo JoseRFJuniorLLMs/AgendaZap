@@ -16,13 +16,47 @@ test('PIX adapter sends real payer email, correct cents and stable idempotency t
     await assert.rejects(charge({name:'Teste'},a,{name:'No email'}),/e-mail do pagador/);
   }finally{global.fetch=originalFetch;process.env=originalEnv;}
 });
-test('subscription adapter uses configured monthly price; inactive configuration cannot create a charge',async()=>{
+test('subscription adapter exposes canonical plans and uses selected monthly price',async()=>{
   const originalFetch=global.fetch,originalEnv={...process.env};
   try{
-    delete process.env.BILLING_ACCESS_TOKEN;assert.equal(billingConfig().configured,false);await assert.rejects(subscription({id:'t'},'qa@example.invalid','key'),/não configurado/);
-    process.env.BILLING_ACCESS_TOKEN='fake-test';process.env.BILLING_WEBHOOK_SECRET='secret';process.env.BILLING_PRICE_CENTS='9900';process.env.PUBLIC_ORIGIN='https://example.invalid';
-    let payload;global.fetch=async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>({id:'sub-test',status:'pending',init_point:'https://www.mercadopago.com.br/subscriptions/checkout?test=1'})};};
-    const result=await subscription({id:'tenant-test'},'qa@example.invalid','checkout-key');assert.equal(result.status,'pending');assert.equal(payload.auto_recurring.transaction_amount,99);assert.equal(payload.auto_recurring.frequency_type,'months');assert.equal(payload.status,'pending');assert.equal(payload.external_reference,'tenant-test');
-    const ts=String(Date.now());const v1=createHmac('sha256','secret').update(`id:abc;request-id:request;ts:${ts};`).digest('hex');assert(billingSignature({signature:`ts=${ts},v1=${v1}`,requestId:'request',dataId:'abc'}));assert(!billingSignature({signature:`ts=${ts},v1=${v1}`,requestId:'different',dataId:'abc'}));
-  }finally{global.fetch=originalFetch;process.env=originalEnv;}
+    delete process.env.BILLING_ACCESS_TOKEN;
+    delete process.env.BILLING_WEBHOOK_SECRET;
+    const config=billingConfig();
+    assert.equal(config.provider_configured,false);
+    assert.deepEqual(config.plans.map(p=>[p.id,p.price_cents,p.setup_cents]),[
+      ['founder',14900,29700],
+      ['professional',24900,59700],
+      ['pro',39700,99700]
+    ]);
+    await assert.rejects(subscription({id:'t'},'qa@example.invalid','key','professional'),/não configurada/);
+
+    process.env.BILLING_ACCESS_TOKEN='fake-test';
+    process.env.BILLING_WEBHOOK_SECRET='secret';
+    process.env.PUBLIC_ORIGIN='https://example.invalid';
+
+    let payload;
+    global.fetch=async(url,options)=>{
+      payload=JSON.parse(options.body);
+      return {ok:true,json:async()=>({id:'sub-test',status:'pending',init_point:'https://www.mercadopago.com.br/subscriptions/checkout?test=1'})};
+    };
+
+    const result=await subscription({id:'tenant-test'},'qa@example.invalid','checkout-key','professional');
+    assert.equal(result.status,'pending');
+    assert.equal(result.plan_id,'professional');
+    assert.equal(result.price_cents,24900);
+    assert.equal(result.setup_cents,59700);
+    assert.equal(payload.auto_recurring.transaction_amount,249);
+    assert.equal(payload.frequency_type,undefined);
+    assert.equal(payload.auto_recurring.frequency_type,'months');
+    assert.equal(payload.status,'pending');
+    assert.equal(payload.external_reference,'tenant-test');
+
+    const ts=String(Date.now());
+    const v1=createHmac('sha256','secret').update(`id:abc;request-id:request;ts:${ts};`).digest('hex');
+    assert(billingSignature({signature:`ts=${ts},v1=${v1}`,requestId:'request',dataId:'abc'}));
+    assert(!billingSignature({signature:`ts=${ts},v1=${v1}`,requestId:'different',dataId:'abc'}));
+  }finally{
+    global.fetch=originalFetch;
+    process.env=originalEnv;
+  }
 });
