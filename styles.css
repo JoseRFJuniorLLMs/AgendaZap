@@ -256,3 +256,33 @@ button:focus-visible, input:focus-visible {
   .mobile-nav button.active { background:var(--accent-soft); color:var(--accent-strong); }
   .toast { bottom:82px; }
 }
+
+
+.mobile-more-menu {
+  position:fixed;
+  right:12px;
+  bottom:78px;
+  z-index:45;
+  width:190px;
+  padding:8px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface);
+  box-shadow:0 18px 44px rgba(0,0,0,.22);
+}
+.mobile-more-menu[hidden] { display:none; }
+.mobile-more-menu button {
+  width:100%;
+  border:0;
+  background:transparent;
+  color:var(--text);
+  text-align:left;
+  padding:11px 12px;
+  border-radius:10px;
+  cursor:pointer;
+}
+.mobile-more-menu button:hover { background:var(--surface-2); }
+
+@media (min-width: 721px) {
+  .mobile-more-menu { display:none !important; }
+}
