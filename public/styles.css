@@ -215,3 +215,8 @@
 .sidebar > .logo{flex-shrink:0}
 .sidebar-scroll{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .sidebar-scroll > *{flex-shrink:0}
+
+.pix-fields{border:0;padding:0;margin:0;min-width:0}
+.pix-key{padding:16px;border:1px solid var(--line);border-radius:12px;display:grid;gap:12px}
+.pix-key .check{font-size:12px}
+.pix-fields:disabled{opacity:.75}

@@ -46,7 +46,7 @@ test('end-to-end: onboarding, public booking, tenant isolation, CSRF and RBAC',a
 });
 test('webhooks reject unsigned payloads and strict schemas block mass assignment',async()=>{
   assert.equal((await request('/webhooks/whatsapp',{method:'POST',body:{entry:[]}})).status,401);
-  assert.equal((await request('/webhooks/payments/mercadopago',{method:'POST',body:{data:{id:'123'}}})).status,401);
+  assert.equal((await request('/webhooks/payments/mercadopago',{method:'POST',body:{data:{id:'123'}}})).status,404);
   assert.equal((await request('/auth/register',{method:'POST',body:{name:'Bad',email:'bad@example.com',password:'Strong-password1',business_name:'Bad',slug:'bad-studio',role:'owner',tenant_id:'other'}})).status,400);
 });
 test('published root redirects once and serves application without a redirect loop',async()=>{

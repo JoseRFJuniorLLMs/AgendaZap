@@ -6,6 +6,10 @@
 
 **AgendaZap** é um SaaS de atendimento, agendamento e **recuperação automática de receita** via WhatsApp para pequenos negócios de serviços.
 
+## Pix direto por cliente
+
+Em **Configurações → Meu Pix**, o proprietário cadastra chaves CPF, CNPJ, e-mail, telefone ou aleatória, escolhe a principal e ativa o recebimento. Reservas com sinal geram QR Code e Copia e Cola para a conta do estabelecimento, sem intermediário. O proprietário ou gerente confere o recebimento no banco e confirma em **Pagamentos** com a referência bancária. Devoluções são feitas no banco e registradas no sistema. A mensalidade da plataforma é acertada com o administrador.
+
 ## Frontend canônico
 
 A única UI servida em produção está em `public/`. O protótipo estático anterior foi preservado em `legacy/prototype/` apenas como referência histórica, evitando alterações acidentais no frontend errado.

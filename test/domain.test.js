@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as d from '../src/domain.js';
 import {MemoryStore} from '../src/store.js';
 import {converse} from '../src/conversation.js';
-import {whatsappSignature,pixSignature} from '../src/providers.js';
+import {whatsappSignature} from '../src/providers.js';
 import {createHmac} from 'node:crypto';
 
 function fixture() {
@@ -27,5 +27,5 @@ test('WhatsApp deterministic booking and duplicate inbound suppression',()=>{con
 test('handoff prevents bot competition and opt-out persists consent evidence',()=>{const {t}=fixture();const send=text=>converse(t,{phone:'+5511888888888',name:'Maria',text,message_id:d.uid()});send('humano');assert.equal(send('agendar'),null);send('sair');assert.equal(t.customers[0].consent,false);assert.equal(t.customers[0].consents.at(-1).granted,false);});
 test('webhook signatures reject tampering and stale replay',()=>{
   process.env.WHATSAPP_APP_SECRET='test-wa';const body=Buffer.from('{}');const signature='sha256='+createHmac('sha256','test-wa').update(body).digest('hex');assert(whatsappSignature(body,signature));assert(!whatsappSignature(Buffer.from('{"fake":1}'),signature));
-  process.env.PIX_WEBHOOK_SECRET='test-pix';const ts=String(Date.now()),requestId='request1',dataId='123';const manifest=`id:123;request-id:request1;ts:${ts};`;const signed=`ts=${ts},v1=${createHmac('sha256','test-pix').update(manifest).digest('hex')}`;assert(pixSignature({signature:signed,requestId,dataId}));assert(!pixSignature({signature:signed,requestId,dataId:'456'}));delete process.env.WHATSAPP_APP_SECRET;delete process.env.PIX_WEBHOOK_SECRET;
+  delete process.env.WHATSAPP_APP_SECRET;
 });

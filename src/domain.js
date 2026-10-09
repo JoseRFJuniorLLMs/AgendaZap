@@ -1,3 +1,4 @@
+import {createPixPayment,pixEnabled} from './pix.js';
 import {randomUUID, createHash, scryptSync, randomBytes, timingSafeEqual} from 'node:crypto';
 
 export class Problem extends Error { constructor(status, message) { super(message); this.status=status; } }
@@ -88,7 +89,7 @@ export function book(t,data,{actor='customer',source='web',now=Date.now(),paymen
   for(const w of t.waitlist.filter(w=>['waiting','offered'].includes(w.status)&&w.customer_id===c.id&&w.service_id===s.id&&w.date===date&&(!w.professional_id||w.professional_id===p.id)))w.status='booked';
   if(data.idempotency_key)t.idempotency[data.idempotency_key]={id:a.id,fingerprint};
   audit(t,actor,'appointment.created',a.id);
-  if(s.deposit_cents) queue(t,'create_payment',{appointment_id:a.id},undefined,`payment:${a.id}`);
+  if(s.deposit_cents) {if(pixEnabled(t))t.payments.push(createPixPayment(t,a));else queue(t,'create_payment',{appointment_id:a.id},undefined,`payment:${a.id}`);}
   else scheduleReminders(t,a,now);
   return a;
 }
@@ -123,14 +124,14 @@ export function reschedule(t,a,data,actor='operator',now=Date.now()) {
   a.reminder_version=(a.reminder_version||0)+1;
   scheduleReminders(t,a,now);audit(t,actor,'appointment.rescheduled',a.id);return a;
 }
-export function settle(t,payment,now=Date.now()) {
+export function settle(t,payment,now=Date.now(),actor='payment-provider') {
   const a=entity(t,'appointments',payment.appointment_id);
   if(['paid','refunded','charged_back'].includes(payment.status))return a;
   if(payment.amount_cents!==a.deposit_cents)fail('Valor de pagamento divergente',409);
   payment.status='paid';payment.paid_at=new Date(now).toISOString();a.payment_status='paid';
   if(a.status==='awaiting_payment' && Date.parse(a.expires_at)>now) {a.status='confirmed';scheduleReminders(t,a,now);}
   else {payment.needs_review=true;queue(t,'payment_review',{appointment_id:a.id},undefined,`review-payment:${payment.id}`);}
-  audit(t,'payment-provider','payment.paid',payment.id);return a;
+  audit(t,actor,'payment.paid',payment.id);return a;
 }
 export function expire(t,now=Date.now()) {
   for(const a of t.appointments.filter(a=>a.status==='awaiting_payment' && Date.parse(a.expires_at)<=now))transition(t,a,'expired','worker',now);

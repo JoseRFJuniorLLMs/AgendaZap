@@ -35,9 +35,8 @@ export function startWorker(store,{interval=15000}={}) {
             if(j.type==='create_payment') {
               const a=d.entity(t,'appointments',j.payload.appointment_id);
               if(a.status!=='awaiting_payment'){await status(t.id,j.id,'cancelled');continue;}
-              if(!providers.integrationStatus().pix){await status(t.id,j.id,'blocked','Configure PIX');continue;}
+              if(!providers.integrationStatus(t).pix){await status(t.id,j.id,'blocked','Configure PIX');continue;}
               const payer={...d.entity(t,'customers',a.customer_id),email:a.payer_email||d.entity(t,'customers',a.customer_id).email};
-              if(!payer.email){await status(t.id,j.id,'blocked','Informe o e-mail do pagador no link de pagamento');continue;}
               const payment=await providers.charge(t,a,payer);
               await store.transaction('worker',state=>{const live=state.tenants[t.id];if(!live.payments.some(p=>p.id===payment.id))live.payments.push(payment);const current=d.entity(live,'jobs',j.id);current.status='done';d.audit(live,'worker','payment.created',payment.id);});
               continue;

@@ -12,6 +12,7 @@ import {converse} from './conversation.js';
 import {startWorker} from './worker.js';
 import {startBackups} from './backup.js';
 import * as billing from './billing.js';
+import {normalizePixConfig,createPixPayment,paymentWithQr} from './pix.js';
 import {boundedRate,validUnicode} from './limits.js';
 const customerCollator=new Intl.Collator('pt-BR',{sensitivity:'base'});
 
@@ -28,7 +29,7 @@ const settingsSchema=z.object({name:text,timezone:z.string().max(80),address:z.s
 const safeTenant = t => ({id:t.id,name:t.name,slug:t.slug,timezone:t.timezone,address:t.address,review_url:t.review_url,min_notice_minutes:t.min_notice_minutes,horizon_days:t.horizon_days,buffer_minutes:t.buffer_minutes,cancellation_hours:t.cancellation_hours,recovery_days:t.recovery_days,payment_email:t.payment_email||'',integrations:t.integrations});
 const safeAppointment = a => {const {manage_token,...rest}=a;return rest;};
 const parse=(schema,value)=>schema.parse(value);
-const catalog=t=>({tenant:{name:t.name,slug:t.slug,timezone:t.timezone,address:t.address,cancellation_hours:t.cancellation_hours},services:t.services.filter(s=>s.active),professionals:t.professionals.filter(p=>p.active).map(p=>({id:p.id,name:p.name,service_ids:p.service_ids})),pix_enabled:providers.integrationStatus().pix});
+const catalog=t=>({tenant:{name:t.name,slug:t.slug,timezone:t.timezone,address:t.address,cancellation_hours:t.cancellation_hours},services:t.services.filter(s=>s.active),professionals:t.professionals.filter(p=>p.active).map(p=>({id:p.id,name:p.name,service_ids:p.service_ids})),pix_enabled:providers.integrationStatus(t).pix});
 
 export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',origin=process.env.PUBLIC_ORIGIN||'http://localhost:8793',secure=process.env.COOKIE_SECURE==='true'}={}) {
   const app=express(); app.disable('x-powered-by');app.set('strict routing',true);app.set('trust proxy','loopback');
@@ -48,11 +49,7 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
     }
     next();
   });
-  const simulations=new Map(),billingLocks=new Map();
-  async function withBillingLock(tenantId,operation){
-    const previous=billingLocks.get(tenantId)||Promise.resolve();const current=previous.catch(()=>{}).then(operation);billingLocks.set(tenantId,current);
-    try{return await current;}finally{if(billingLocks.get(tenantId)===current)billingLocks.delete(tenantId);}
-  }
+  const simulations=new Map();
   function getTenant(slug) {return Object.values(store.state.tenants).find(t=>t.slug===slug)||d.fail('Estabelecimento não encontrado',404);}
   const cookieName='agendazap_session';
   function token(req) {return req.headers.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))?.split('=').slice(1).join('=')||'';}
@@ -125,7 +122,7 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.post('/api/blocks',auth,async(req,res)=>{const data=parse(z.object({professional_id:id,starts_at:instant,ends_at:instant,reason:text}).strict().refine(x=>Date.parse(x.starts_at)<Date.parse(x.ends_at)),req.body);data.starts_at=new Date(data.starts_at).toISOString();data.ends_at=new Date(data.ends_at).toISOString();if(req.account.role==='professional' && data.professional_id!==req.account.professional_id)d.fail('Acesso negado',403);if(!['owner','manager','professional'].includes(req.account.role))d.fail('Acesso negado',403);const result=await mutate(req,t=>{d.entity(t,'professionals',data.professional_id);if(t.appointments.some(a=>a.professional_id===data.professional_id && d.ACTIVE.includes(a.status)&&d.overlap(data.starts_at,data.ends_at,a.starts_at,a.ends_at)))d.fail('O bloqueio sobrepõe agendamentos existentes',409);const b={id:d.uid(),...data};t.blocks.push(b);d.audit(t,req.account.id,'block.created',b.id);return b;});res.status(201).json(result);});
   router.delete('/api/blocks/:id',auth,async(req,res)=>{await mutate(req,t=>{const b=d.entity(t,'blocks',req.params.id);if(!['owner','manager'].includes(req.account.role)&&!(req.account.role==='professional'&&b.professional_id===req.account.professional_id))d.fail('Acesso negado',403);t.blocks=t.blocks.filter(x=>x.id!==b.id);d.audit(t,req.account.id,'block.removed',b.id);});res.json({ok:true});});
   router.get('/api/appointments',auth,(req,res)=>res.json(req.tenant.appointments.filter(a=>req.account.role!=='professional'||a.professional_id===req.account.professional_id).map(safeAppointment)));
-  router.post('/api/appointments',auth,operator,async(req,res)=>{const data=parse(booking,req.body);const a=await mutate(req,t=>d.book(t,data,{actor:req.account.id,source:'operator',paymentEnabled:providers.integrationStatus().pix}));res.status(201).json({...safeAppointment(a),manage_url:`${origin}${basePath}/#manage/${a.id}/${a.manage_token}`});});
+  router.post('/api/appointments',auth,operator,async(req,res)=>{const data=parse(booking,req.body);const a=await mutate(req,t=>d.book(t,data,{actor:req.account.id,source:'operator',paymentEnabled:providers.integrationStatus(t).pix}));res.status(201).json({...safeAppointment(a),manage_url:`${origin}${basePath}/#manage/${a.id}/${a.manage_token}`});});
   router.get('/api/appointments/:id/payment-link',auth,operator,(req,res)=>{const a=d.entity(req.tenant,'appointments',req.params.id);res.json({manage_url:`${origin}${basePath}/#manage/${a.id}/${a.manage_token}`});});
   router.post('/api/appointments/:id/status',auth,async(req,res)=>{const data=parse(z.object({status:z.enum(['confirmed','checked_in','completed','no_show','cancelled_by_business'])}).strict(),req.body);res.json(safeAppointment(await mutate(req,t=>{const a=d.entity(t,'appointments',req.params.id);if(req.account.role==='professional'&&a.professional_id!==req.account.professional_id)d.fail('Acesso negado',403);return d.transition(t,a,data.status,req.account.id);})));});
   router.post('/api/appointments/:id/reschedule',auth,operator,async(req,res)=>{const data=parse(z.object({starts_at:instant,professional_id:id.optional()}).strict(),req.body);res.json(safeAppointment(await mutate(req,t=>d.reschedule(t,d.entity(t,'appointments',req.params.id),data,req.account.id))));});
@@ -155,7 +152,8 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.get('/api/waitlist',auth,operator,(req,res)=>res.json(req.tenant.waitlist));
   router.post('/api/waitlist',auth,operator,async(req,res)=>{const data=parse(z.object({customer_id:id,service_id:id,professional_id:id.nullable().optional(),date}).strict(),req.body);res.status(201).json(await mutate(req,t=>{d.entity(t,'customers',data.customer_id);d.entity(t,'services',data.service_id);if(data.professional_id)d.entity(t,'professionals',data.professional_id);const w={id:d.uid(),...data,status:'waiting',created_at:new Date().toISOString()};t.waitlist.push(w);return w;}));});
   router.get('/api/payments',auth,manager,(req,res)=>res.json(req.tenant.payments.map(({qr_code,qr_code_base64,...rest})=>rest)));
-  router.post('/api/payments/:id/refund',auth,owner,async(req,res)=>{const payment=d.entity(req.tenant,'payments',req.params.id);if(payment.status!=='paid')d.fail('Pagamento não permite estorno',409);const result=await providers.refund(payment.id,`refund:${payment.id}`);await mutate(req,t=>{const p=d.entity(t,'payments',payment.id);p.status='refunded';p.refund_reference=String(result.id);d.entity(t,'appointments',p.appointment_id).payment_status='refunded';d.audit(t,req.account.id,'payment.refunded',p.id);});res.json({ok:true});});
+  router.post('/api/payments/:id/confirm',auth,manager,async(req,res)=>{const data=parse(z.object({bank_reference:z.string().trim().min(1).max(100)}).strict(),req.body);res.json(await mutate(req,t=>{const p=d.entity(t,'payments',req.params.id);if(p.provider!=='pix_manual')d.fail('Pagamento antigo requer conciliação pelo administrador',409);if(p.status==='paid')return p;if(p.status!=='pending')d.fail('Pagamento não pode ser confirmado',409);if(t.payments.some(other=>other.id!==p.id&&other.bank_reference===data.bank_reference))d.fail('Referência bancária já utilizada',409);d.settle(t,p,Date.now(),req.account.id);p.confirmed_by=req.account.id;p.bank_reference=data.bank_reference;p.confirmation_method='manual';return p;}));});
+  router.post('/api/payments/:id/refund',auth,owner,async(req,res)=>{const data=parse(z.object({bank_reference:z.string().trim().min(1).max(100)}).strict(),req.body);await mutate(req,t=>{const p=d.entity(t,'payments',req.params.id);if(p.status!=='paid')d.fail('Pagamento não permite registro de devolução',409);p.status='refunded';p.refund_reference=data.bank_reference;p.refunded_at=new Date().toISOString();d.entity(t,'appointments',p.appointment_id).payment_status='refunded';d.audit(t,req.account.id,'payment.refund_recorded',p.id);});res.json({ok:true});});
   router.get('/api/conversations',auth,operator,(req,res)=>res.json(req.tenant.conversations));
   router.post('/api/conversations/:id/handoff',auth,operator,async(req,res)=>{const data=parse(z.object({enabled:z.boolean()}).strict(),req.body);res.json(await mutate(req,t=>{const c=d.entity(t,'conversations',req.params.id);c.human_handoff=data.enabled;c.state=data.enabled?'human':'start';c.failures=0;d.audit(t,req.account.id,'conversation.handoff',c.id);return c;}));});
   router.post('/api/conversations/:id/reply',auth,operator,async(req,res)=>{const data=parse(z.object({text:z.string().trim().min(1).max(2000)}).strict(),req.body);await mutate(req,t=>{const c=d.entity(t,'conversations',req.params.id);if(!c.human_handoff)d.fail('Assuma o atendimento primeiro',409);if(!c.last_inbound_at||Date.parse(c.last_inbound_at)<Date.now()-24*3600000)d.fail('Janela de 24h encerrada; use um template aprovado',409);const msg={id:d.uid(),direction:'out',text:data.text,at:new Date().toISOString(),status:'queued'};c.messages.push(msg);d.queue(t,'reply',{customer_id:c.customer_id,text:data.text,conversation_id:c.id,message_id:msg.id},undefined,`reply:${msg.id}`);});res.json({ok:true});});
@@ -163,8 +161,9 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
   router.get('/api/jobs',auth,manager,(req,res)=>res.json(req.tenant.jobs));
   router.post('/api/jobs/:id/retry',auth,manager,async(req,res)=>{await mutate(req,t=>{const j=d.entity(t,'jobs',req.params.id);if(!['failed','blocked'].includes(j.status))d.fail('Job não pode ser reexecutado',409);j.status='pending';j.attempts=0;j.scheduled_at=new Date().toISOString();});res.json({ok:true});});
   router.post('/api/campaigns/recovery',auth,manager,async(req,res)=>{const campaign=d.uid();let count=0;await mutate(req,t=>{for(const c of t.customers.filter(c=>c.consent&&c.last_visit_at&&Date.parse(c.last_visit_at)<Date.now()-t.recovery_days*86400000&&!t.appointments.some(a=>a.customer_id===c.id&&d.ACTIVE.includes(a.status)))){if(t.jobs.some(j=>j.type==='recovery'&&j.payload.customer_id===c.id&&Date.parse(j.scheduled_at)>Date.now()-30*86400000))continue;d.queue(t,'recovery',{customer_id:c.id,campaign_id:campaign});count++;}d.audit(t,req.account.id,'campaign.recovery_created',campaign);});res.json({campaign_id:campaign,queued:count});});
-  router.get('/api/settings',auth,manager,(req,res)=>res.json({tenant:safeTenant(req.tenant),integrations:providers.integrationStatus()}));
+  router.get('/api/settings',auth,manager,(req,res)=>res.json({tenant:safeTenant(req.tenant),integrations:providers.integrationStatus(req.tenant),pix:req.tenant.pix||{enabled:false,recipient_name:'',recipient_city:'',keys:[],default_key_id:null}}));
   router.patch('/api/settings',auth,manager,async(req,res)=>{const data=parse(settingsSchema,req.body);try{new Intl.DateTimeFormat('pt-BR',{timeZone:data.timezone});}catch{d.fail('Timezone inválido');}res.json(await mutate(req,t=>{Object.assign(t,data);d.audit(t,req.account.id,'tenant.settings_updated',t.id);return safeTenant(t);}));});
+  router.patch('/api/settings/pix',auth,owner,async(req,res)=>{const data=normalizePixConfig(req.body);res.json(await mutate(req,t=>{t.pix=data;d.audit(t,req.account.id,'integration.pix_updated',t.id);return t.pix;}));});
   router.patch('/api/settings/whatsapp',auth,owner,async(req,res)=>{const data=parse(z.object({phone_id:z.string().regex(/^\d{5,30}$/)}).strict(),req.body);if(data.phone_id!==process.env.WHATSAPP_PHONE_ID)d.fail('Número precisa ser autorizado no ambiente pelo administrador da plataforma',403);await mutate(req,(t,state)=>{if(Object.values(state.tenants).some(other=>other.id!==t.id&&other.integrations.phone_id===data.phone_id))d.fail('Número já vinculado',409);t.integrations.phone_id=data.phone_id;d.audit(t,req.account.id,'integration.whatsapp_linked',t.id);});res.json({ok:true});});
   router.get('/api/users',auth,owner,(req,res)=>res.json(Object.values(store.state.accounts).filter(a=>a.tenant_id===req.tenant.id).map(({password_hash,...a})=>a)));
   router.post('/api/users',auth,owner,async(req,res)=>{const data=parse(z.object({name:text,email:z.string().email().transform(x=>x.toLowerCase()),password:z.string().min(12).max(128),role:z.enum(['manager','attendant','professional']),professional_id:id.nullable().optional()}).strict(),req.body);const result=await mutate(req,(t,state)=>{if(state.accounts[data.email])d.fail('E-mail já cadastrado',409);if(data.role==='professional'){if(!data.professional_id)d.fail('Selecione um profissional');d.entity(t,'professionals',data.professional_id);}const {password,...rest}=data;const a={id:d.uid(),...rest,tenant_id:t.id,active:true,password_hash:d.passwordHash(password)};state.accounts[a.id]=a;state.accounts[a.email]={alias:a.id};d.audit(t,req.account.id,'user.created',a.id);const {password_hash,...safe}=a;return safe;});res.status(201).json(result);});
@@ -179,56 +178,17 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
       subscription:req.tenant.billing||{status:'not_configured'}
     });
   });
-  router.post('/api/billing/checkout',auth,owner,async(req,res)=>{
-    const data=parse(z.object({plan_id:z.string().refine(value=>billing.PLANS.some(plan=>plan.id===value),'Plano inválido')}).strict(),req.body);
-    const result=await withBillingLock(req.tenant.id,async()=>{
-      const live=store.state.tenants[req.tenant.id],current=live.billing;
-      if(current&&['authorized','pending','paused'].includes(current.status)&&current.provider_id){
-        if(current.plan_id===data.plan_id)return current;
-        d.fail('Cancele a assinatura atual antes de escolher outro plano',409);
-      }
-      const key=await mutate(req,t=>{
-      if(t.billing_request_plan!==data.plan_id){
-        t.billing_request_key=d.uid();
-        t.billing_request_plan=data.plan_id;
-      }
-      t.billing_request_key||=d.uid();
-      return t.billing_request_key;
-      });
-      const created=await billing.subscription(store.state.tenants[req.tenant.id],req.account.email,key,data.plan_id);
-      await mutate(req,t=>{
-      t.billing=created;
-      t.billing_request_plan=data.plan_id;
-      d.audit(t,req.account.id,'billing.checkout_created',created.provider_id);
-      });return created;
-    });
-    res.json(result);
-  });
-  router.post('/api/billing/cancel',auth,owner,async(req,res)=>{
-    const result=await withBillingLock(req.tenant.id,async()=>{
-    const subscription=store.state.tenants[req.tenant.id].billing;
-    if(!subscription?.provider_id)d.fail('Sem assinatura ativa',409);
-    const cancelled=await billing.cancelSubscription(subscription.provider_id);
-    await mutate(req,t=>{
-      t.billing.status=cancelled.status;
-      t.billing_request_key=null;
-      t.billing_request_plan=null;
-      d.audit(t,req.account.id,'billing.cancelled',subscription.provider_id);
-    });
-    return cancelled;
-    });
-    res.json({status:result.status});
-  });
+  router.post('/api/billing/checkout',auth,owner,(req,res)=>{billing.getPlan(req.body?.plan_id);d.fail('Cobrança automática removida. Combine a mensalidade com o administrador da plataforma.',503);});
+  router.post('/api/billing/cancel',auth,owner,(req,res)=>{d.fail('Solicite o encerramento da assinatura ao administrador da plataforma.',409);});
   router.get('/api/export',auth,owner,async(req,res)=>{const data=await mutate(req,t=>{d.audit(t,req.account.id,'tenant.exported',t.id);return {...t,appointments:t.appointments.map(safeAppointment)};});res.attachment('agendazap-export.json').json(data);});
 
   router.get('/api/public/:slug', (req,res)=>res.json(catalog(getTenant(req.params.slug))));
   router.get('/api/public/:slug/availability',(req,res)=>res.json(d.slots(getTenant(req.params.slug),parse(id,req.query.service_id),parse(date,req.query.date),req.query.professional_id)));
-  router.post('/api/public/:slug/appointments',async(req,res)=>{const data=parse(booking,req.body);const tenant=getTenant(req.params.slug);const result=await store.transaction('public-booking',state=>{const t=state.tenants[tenant.id];if(t.appointments.filter(a=>a.created_at>new Date(Date.now()-3600000).toISOString()&&d.entity(t,'customers',a.customer_id).phone===data.phone).length>=5)d.fail('Limite de reservas por telefone atingido',429);return d.book(t,data,{paymentEnabled:providers.integrationStatus().pix});});res.status(201).json({appointment:safeAppointment(result),manage_token:result.manage_token});});
+  router.post('/api/public/:slug/appointments',async(req,res)=>{const data=parse(booking,req.body);const tenant=getTenant(req.params.slug);const result=await store.transaction('public-booking',state=>{const t=state.tenants[tenant.id];if(t.appointments.filter(a=>a.created_at>new Date(Date.now()-3600000).toISOString()&&d.entity(t,'customers',a.customer_id).phone===data.phone).length>=5)d.fail('Limite de reservas por telefone atingido',429);return d.book(t,data,{paymentEnabled:providers.integrationStatus(t).pix});});res.status(201).json({appointment:safeAppointment(result),manage_token:result.manage_token});});
   function managed(req,state=store.state) {for(const t of Object.values(state.tenants)){const a=t.appointments.find(a=>a.id===req.params.id && a.manage_token===req.get('x-booking-token'));if(a)return {t,a};}d.fail('Agendamento não encontrado',404);}
-  router.get('/api/public/appointments/:id/manage',(req,res)=>{const {t,a}=managed(req);res.json({appointment:safeAppointment(a),catalog:catalog(t),payment:t.payments.find(p=>p.appointment_id===a.id)||null});});
+  router.get('/api/public/appointments/:id/manage',async(req,res)=>{const {t,a}=managed(req);let payment=t.payments.find(p=>p.appointment_id===a.id)||null;if(!payment&&a.status==='awaiting_payment'&&Date.parse(a.expires_at)>Date.now()&&providers.integrationStatus(t).pix)payment=await store.transaction('pix-create',state=>{const {t:live,a:current}=managed(req,state);if(current.status!=='awaiting_payment'||Date.parse(current.expires_at)<=Date.now())d.fail('Prazo da reserva encerrado',409);const existing=live.payments.find(p=>p.appointment_id===current.id);if(existing)return existing;const created=createPixPayment(live,current);live.payments.push(created);d.audit(live,'customer','payment.created',created.id);return created;});if(payment&&(a.status!=='awaiting_payment'||Date.parse(a.expires_at)<=Date.now())){const {qr_code,qr_code_base64,key_value,...safe}=payment;payment=safe;}res.json({appointment:safeAppointment(a),catalog:catalog(t),payment:await paymentWithQr(payment)});});
   router.post('/api/public/appointments/:id/cancel',async(req,res)=>{await store.transaction('public-cancel',state=>{const {t,a}=managed(req,state);if(Date.parse(a.starts_at)-Date.now()<t.cancellation_hours*3600000)d.fail('Prazo de cancelamento encerrado. Fale com o estabelecimento.',409);d.transition(t,a,'cancelled_by_customer','customer');});res.json({ok:true});});
   router.post('/api/public/appointments/:id/reschedule',async(req,res)=>{const data=parse(z.object({starts_at:instant,professional_id:id.optional()}).strict(),req.body);res.json(await store.transaction('public-reschedule',state=>{const {t,a}=managed(req,state);if(Date.parse(a.starts_at)-Date.now()<t.cancellation_hours*3600000)d.fail('Prazo de reagendamento encerrado',409);return safeAppointment(d.reschedule(t,a,data,'customer'));}));});
-  router.post('/api/public/appointments/:id/payment-email',async(req,res)=>{const data=parse(z.object({email:z.string().email().max(200)}).strict(),req.body);await store.transaction('public-payment-email',state=>{const {t,a}=managed(req,state);if(a.status!=='awaiting_payment'||Date.parse(a.expires_at)<=Date.now())d.fail('Reserva não está aguardando pagamento',409);a.payer_email=data.email;const job=t.jobs.find(j=>j.type==='create_payment'&&j.payload.appointment_id===a.id);if(job&&['blocked','failed'].includes(job.status)){job.status='pending';job.attempts=0;job.scheduled_at=new Date().toISOString();}});res.json({ok:true});});
   router.get('/api/webhooks/whatsapp',(req,res)=>{if(!process.env.WHATSAPP_VERIFY_TOKEN||req.query['hub.mode']!=='subscribe'||req.query['hub.verify_token']!==process.env.WHATSAPP_VERIFY_TOKEN)return res.sendStatus(403);res.type('text').send(req.query['hub.challenge']);});
   router.post('/api/webhooks/whatsapp',async(req,res)=>{
     if(!providers.whatsappSignature(req.rawBody,req.get('x-hub-signature-256')))d.fail('Assinatura inválida',401);
@@ -244,14 +204,6 @@ export function createApp(store,{basePath=process.env.BASE_PATH||'/AgendaZap',or
     }
     res.json({ok:true});
   });
-  router.post('/api/webhooks/payments/mercadopago',async(req,res)=>{
-    const dataId=String(req.query['data.id']||req.body?.data?.id||'');
-    if(!/^[0-9]{1,30}$/.test(dataId)||!providers.pixSignature({signature:req.get('x-signature'),requestId:req.get('x-request-id'),dataId}))d.fail('Assinatura inválida',401);
-    const verified=await providers.getPayment(dataId);
-    await store.transaction('pix-webhook',state=>{for(const t of Object.values(state.tenants)){const p=t.payments.find(p=>p.id===dataId);if(!p)continue;if(verified.external_reference!==p.appointment_id||Math.round(verified.transaction_amount*100)!==p.amount_cents||verified.payment_method_id!=='pix')d.fail('Pagamento divergente',409);const timestamp=Date.parse(verified.date_last_updated);if(Number.isFinite(timestamp)&&p.provider_updated_at&&timestamp<Date.parse(p.provider_updated_at))continue;d.reconcilePayment(t,p,verified.status);if(Number.isFinite(timestamp))p.provider_updated_at=new Date(timestamp).toISOString();}});res.json({ok:true});
-  });
-  router.post('/api/webhooks/billing/mercadopago',async(req,res)=>{const dataId=String(req.query['data.id']||req.body?.data?.id||'');if(!/^[a-zA-Z0-9-]{1,80}$/.test(dataId)||!billing.billingSignature({signature:req.get('x-signature'),requestId:req.get('x-request-id'),dataId}))d.fail('Assinatura inválida',401);const verified=await billing.getSubscription(dataId);await store.transaction('billing-webhook',state=>{const t=state.tenants[verified.external_reference];if(!t||t.billing?.provider_id!==dataId)d.fail('Assinatura não encontrada',404);if(!['authorized','pending','paused','cancelled'].includes(verified.status))d.fail('Status de assinatura inválido');t.billing.status=verified.status;t.billing.updated_at=new Date().toISOString();if(verified.status==='cancelled'){t.billing_request_key=null;t.billing_request_plan=null;}d.audit(t,'billing-provider','billing.reconciled',dataId);});res.json({ok:true});});
-
   router.use(express.static(resolve('public'),{index:'index.html',maxAge:0}));
   router.use('/api',(req,res)=>res.status(404).json({error:'Endpoint não encontrado'}));
   app.get(basePath,(req,res)=>res.redirect(308,basePath+'/'));

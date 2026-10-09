@@ -33,7 +33,7 @@ export function converse(t,{phone,name,text,message_id},intent=null) {
   else if(conv.state==='slot' && conv.options[Number(input)-1]) {
     const slot=conv.options[Number(input)-1];
     try {
-      const a=conv.rescheduling?reschedule(t,entity(t,'appointments',conv.appointment_id),slot,'whatsapp'):book(t,{service_id:conv.service_id,professional_id:slot.professional_id,starts_at:slot.starts_at,customer_id:c.id,idempotency_key:message_id},{source:'whatsapp',paymentEnabled:integrationStatus().pix});
+      const a=conv.rescheduling?reschedule(t,entity(t,'appointments',conv.appointment_id),slot,'whatsapp'):book(t,{service_id:conv.service_id,professional_id:slot.professional_id,starts_at:slot.starts_at,customer_id:c.id,idempotency_key:message_id},{source:'whatsapp',paymentEnabled:integrationStatus(t).pix});
       reset(conv);
       const link=`${process.env.PUBLIC_ORIGIN}${process.env.BASE_PATH||'/AgendaZap'}/#manage/${a.id}/${a.manage_token}`;
       reply=a.status==='awaiting_payment'?`Reserva feita por 15 minutos. Abra o link para pagar o sinal: ${link}`:`Agendamento confirmado! Gerencie aqui: ${link}`;

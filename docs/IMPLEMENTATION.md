@@ -14,7 +14,7 @@ Node.js 22 + Express 5, schemas Zod, interface ES Modules/HTML/CSS responsiva e 
 | Agenda/CRM | src/domain.js — vagas; transições; hold; auditoria; métricas |
 | Persistência | src/store.js — transações PostgreSQL; projeção JSONB; advisory lock |
 | Conversas | src/conversation.js — menu; gerenciamento; opt-out; handoff |
-| Integrações | src/providers.js — Meta; Mercado Pago; classificador opcional |
+| Integrações | src/providers.js — Meta; src/pix.js — Pix direto; classificador opcional |
 | Worker | src/worker.js — fila persistida; expiração; retry; efeitos externos |
 | Frontend | public/ — landing; onboarding; painel; agenda pública; PWA |
 
@@ -38,9 +38,9 @@ Sem sinal: confirmed. Com sinal: awaiting_payment, hold 15min; não aceita servi
 
 Reserva captura preços; reagendamento mantém identidade e preços e substitui lembretes. Cancelamento público observa cancellation_hours; operador pode tratar exceções manualmente. Não há estorno automático, crédito nem retenção parcial nesta versão.
 
-Mercado Pago: criar PIX com external_reference appointment.id e X-Idempotency-Key appointment.id. Persistir provider ID, amount, QR/copia-cola e expires_at. Webhook valida HMAC ts/data.id/x-request-id com tolerância 5min; consulta pagamento no fornecedor; verifica método PIX, referência e valor. Somente approved paga. Replay não duplica. Pagamento depois do vencimento/cancelamento é reconhecido, não recupera slot; payment_review exige revisão. Estorno integral é exclusivo owner e idempotente por refund:<payment_id>.
+Pix direto: configuração por estabelecimento, múltiplas chaves e uma principal. BR Code estático inclui chave, recebedor, cidade, valor e txid por reserva; QR gerado no servidor. Confirmação manual por owner/manager com referência bancária, idempotência e auditoria. Recebimento após expiração/cancelamento exige revisão sem recuperar o horário. Devolução é feita no banco e registrada por owner.
 
-E-mail real do pagador é coletado pelo link de gerenciamento antes da criação do PIX; reservas WhatsApp também usam esse link. Não usar e-mail técnico do estabelecimento como identidade do pagador. Contrato fornecedor: [Mercado Pago webhooks](https://www.mercadopago.com.br/developers/en/docs/links-and-debts/additional-content/your-integrations/notifications/webhooks).
+Não exige e-mail do pagador nem token de intermediário. A validade da reserva não expira o QR estático no banco; a tela esconde o QR após o prazo e orienta contato com o estabelecimento. Chaves precisam estar registradas no banco; validação local não verifica titularidade.
 
 ## WhatsApp e IA
 
@@ -81,7 +81,7 @@ Backup do app não é backup do banco. Operador deve configurar backup PostgreSQ
 | PIX | Adapter/hold/webhook/estorno; homologação real pendente |
 | Automação | Fila e regras implementadas; envio depende de integração |
 | IA | Classificador básico/fallback; entidades/tools avançadas adiadas |
-| Comercialização | Landing/onboarding/export/PWA/termos; plano mensal e checkout Mercado Pago implementados; configuração e homologação pendentes |
+| Comercialização | Landing/onboarding/export/PWA/termos; planos mensais disponíveis; cobrança e ativação acertadas com administrador |
 
 Backlog: enforcement automático de plano; Meta multiempresa; segredos por tenant; LLM avançado/custos; MFA; reset de senha; snapshots/eventos por entidade; multi-host; eliminação integral; políticas financeiras parciais; Google Calendar; múltiplas unidades; fidelidade; cupons; marketplace. Esses itens não devem ser marcados como concluídos apenas porque há publicação.
 
@@ -89,4 +89,4 @@ Backlog: enforcement automático de plano; Meta multiempresa; segredos por tenan
 
 AES-256-GCM da projeção completa; backup no startup e a cada 24h; arquivo 0600; escrita atômica; retenção 30 cópias; chave hex de 32 bytes em /etc/agendazap-backup.key fora dos backups. Recuperação exige preservar essa chave em cofre e copiar backups para destino independente. O backup da projeção do AgendaZap é adicional ao backup PostgreSQL. Restore exige schema explicitamente isolado e vazio; nunca sobrescreve negócio ativo; sessões restauradas são revogadas. Integridade e restauração isolada devem ser comprovadas em VALIDATION.md.
 
-Plano/assinatura usa credenciais BILLING separadas das cobranças de clientes. GET billing mostra preço mensal configurado, estado e checkout. Proprietário prepara preapproval pending; só o checkout do Mercado Pago permite autorizar pagamento. Webhook assinado consulta preapproval autoritativo e confere external_reference/provider ID; cancelamento chama PUT cancelled e audita. Sem token/segredo/preço, retorna configuração pendente; não bloqueia agenda nem cobra. Billing de uso/enforcement, trial e gestão de impostos ainda não implementados. Referência: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/create-preapproval/post.
+Plano/assinatura: preços permanecem no GET billing, com provider manual. Checkout automático e webhooks do intermediário foram removidos. A mensalidade é combinada com o administrador e fica separada dos sinais recebidos diretamente pelos estabelecimentos.
