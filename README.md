@@ -177,6 +177,18 @@ Stack inicial:
 | SPEC-0012 | [Growth Analytics](docs/specs/SPEC-0012-GROWTH-ANALYTICS.md) | funil, cohort, LTV, reviews e indicação |
 | SPEC-0013 | [Frontend Hardening & UX](docs/specs/SPEC-0013-FRONTEND-HARDENING-UX.md) | branding, cache, deploy, acessibilidade, routing e quality gates |
 | SPEC-0014 | [Voice AI](docs/specs/SPEC-0014-VOICE-AI.md) | STT, TTS, modo por tenant, fallback e voz em tempo real |
+| SPEC-0015 | [Posicionamento e ICP](docs/specs/SPEC-0015-COMMERCIAL-POSITIONING-ICP.md) | categoria, vertical inicial, ICP e promessa comercial |
+| SPEC-0016 | [WhatsApp Multi-Tenant](docs/specs/SPEC-0016-META-WHATSAPP-MULTITENANT.md) | onboarding oficial, credenciais isoladas e health |
+| SPEC-0017 | [Calendar, Import e Migração](docs/specs/SPEC-0017-CALENDAR-IMPORT-MIGRATION.md) | Google Calendar, CSV, migração e deduplicação |
+| SPEC-0018 | [Payments e Billing](docs/specs/SPEC-0018-PAYMENTS-ASAAS-BILLING.md) | PSP opcional, Asaas, recorrência, NFS-e e billing SaaS |
+| SPEC-0019 | [Reviews e Referral](docs/specs/SPEC-0019-REVIEWS-REPUTATION-REFERRALS.md) | reputação, avaliações e indicação |
+| SPEC-0020 | [Booking Distribution](docs/specs/SPEC-0020-GOOGLE-BOOKING-DISTRIBUTION.md) | canais externos e Reserve with Google quando elegível |
+| SPEC-0021 | [Marketing Attribution](docs/specs/SPEC-0021-MARKETING-ATTRIBUTION-CTWA.md) | Click-to-WhatsApp, campanhas e receita atribuída |
+| SPEC-0022 | [Mobile/PWA](docs/specs/SPEC-0022-MOBILE-PWA-PRO.md) | decisão PWA, app profissional e push |
+| SPEC-0023 | [GTM e Lead Scoring](docs/specs/SPEC-0023-GTM-SALES-LEAD-SCORING.md) | vendas, 20 fundadores, pipeline e qualificação |
+| SPEC-0024 | [Pricing & Economics](docs/specs/SPEC-0024-PRICING-PACKAGING-ECONOMICS.md) | planos, ROI, entitlements e margem |
+| SPEC-0025 | [Commercial Readiness](docs/specs/SPEC-0025-COMMERCIAL-ONBOARDING-READINESS.md) | onboarding, trial, suporte e activation |
+| SPEC-0026 | [Execution Roadmap](docs/specs/SPEC-0026-REVENUE-AUTOPILOT-EXECUTION-ROADMAP.md) | ordem P0/P1/P2, gates e KPI hierarchy |
 
 ## Princípios
 

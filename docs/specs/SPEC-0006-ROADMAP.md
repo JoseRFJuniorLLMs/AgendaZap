@@ -1,61 +1,52 @@
 # SPEC-0006 — Roadmap
 
 **Status:** Draft  
-**Versão:** 0.2.0
+**Versão:** 0.3.0
 
 ## Princípio
 
-Não construir sete fases antes de vender. O roadmap deve reduzir o tempo até o primeiro tenant pagante.
+Não construir sete fases antes de vender. O roadmap deve reduzir o tempo até primeiro valor econômico comprovado e primeiro tenant pagante.
+
+A ordem comercial detalhada está em [SPEC-0026](SPEC-0026-REVENUE-AUTOPILOT-EXECUTION-ROADMAP.md).
 
 ## Fase 0 — Fundação
 
-- monorepo;
-- Docker;
 - PostgreSQL;
-- Redis;
-- migrations;
-- CI;
-- lint;
-- testes;
-- secret scanning;
+- CI/testes;
+- segurança;
 - observabilidade;
-- outbox base.
+- backup/restore;
+- deploy reproduzível.
 
-**DoD:** sobe localmente e em ambiente de demonstração.
+**DoD:** ambiente demonstrável e recuperável.
 
 ## Fase 1 — Core de agenda
 
 - tenant;
-- location;
 - auth/RBAC;
 - professionals;
 - services;
-- resources;
 - availability;
 - holds;
 - appointments;
+- blocks;
 - dashboard.
 
-**DoD:** não há double booking de profissional/recurso.
+**DoD:** não há double booking.
 
-## Fase 2 — Jornada comercial
+## Fase 2 — Conversão
 
 - página pública;
-- mobile-first;
-- WhatsApp webhook;
-- WhatsApp Flows;
-- booking;
-- cancel;
-- reschedule;
+- mobile-first/PWA;
+- WhatsApp;
+- booking/cancel/reschedule;
 - waitlist;
 - handoff.
 
 **DoD:** cliente agenda sem atendente.
 
-## Fase 3 — PIX + Revenue Engine
+## Fase 3 — Revenue Autopilot
 
-- payment adapter;
-- hold TTL;
 - PIX;
 - reminders;
 - cancellation recovery;
@@ -65,74 +56,75 @@ Não construir sete fases antes de vender. O roadmap deve reduzir o tempo até o
 
 **DoD:** sistema demonstra dinheiro recuperado.
 
-## Fase 4 — Primeiro tenant pagante
+## Fase 4 — Comercialização P0
 
-- onboarding;
-- import CSV;
-- demo tenant;
-- plano inicial;
-- subscription;
-- usage metering;
-- termos;
-- privacidade;
-- suporte operacional.
+- posicionamento e ICP — SPEC-0015;
+- WhatsApp multi-tenant — SPEC-0016;
+- importação/migração — SPEC-0017;
+- onboarding/trial — SPEC-0025;
+- pricing/entitlements — SPEC-0024;
+- GTM/lead scoring — SPEC-0023.
 
-**DoD:** pelo menos um tenant real pagando.
+**DoD:** tenant real ativa sem engenharia e entende o ROI.
 
-## Fase 5 — Retenção e monetização
+## Fase 5 — Retenção e integrações P1
 
-- packages;
-- credits;
-- memberships;
-- commissions;
-- Google Calendar;
-- reviews;
-- referral loop.
+- Google Calendar — SPEC-0017;
+- PSP opcional/Asaas e billing — SPEC-0018;
+- reviews/referrals — SPEC-0019;
+- marketing attribution/Click-to-WhatsApp — SPEC-0021.
 
-## Fase 6 — IA avançada
+**DoD:** integrações aumentam ocupação, retenção ou margem de forma mensurável.
 
-- intent classification;
-- entity extraction;
-- tool calling;
-- semantic FAQ;
-- next-best-action;
-- cost observability;
-- provider fallback.
+## Fase 6 — Distribuição
 
-IA entra depois do core determinístico provar conversão.
+- public booking distribution;
+- Reserve with Google quando elegível;
+- parceiros/canais externos.
 
-## Fase 7 — Escala
+Referência: SPEC-0020.
+
+## Fase 7 — Mobile profissional
+
+- PWA madura;
+- push operacional;
+- AgendaZap Pro somente se métricas justificarem.
+
+Referência: SPEC-0022.
+
+## Fase 8 — Escala
 
 - múltiplas unidades;
-- planos;
 - quotas;
-- white-label;
-- vertical profiles;
-- advanced analytics;
-- predictive occupancy.
+- white-label quando comercialmente validado;
+- analytics avançado;
+- predictive occupancy;
+- marketplace somente após PMF.
 
 ## Gates
 
-Feature só entra antes do PMF se:
+Feature só antecipa ordem se:
 
 1. aumenta conversão;
 2. reduz no-show;
 3. recupera receita;
 4. reduz trabalho;
 5. melhora retenção;
-6. reduz custo de onboarding;
+6. reduz onboarding;
 7. melhora margem.
 
-## Indicador North Star
+## North Star
 
 **Recovered Revenue per Active Tenant (RRAT)**
 
-Indicadores auxiliares:
+Auxiliares:
 
 - occupancy;
 - no-show;
 - reactivation;
 - cancellation recovery;
 - booking conversion;
+- activation;
 - MRR;
-- gross margin per tenant.
+- gross margin per tenant;
+- CAC payback.
