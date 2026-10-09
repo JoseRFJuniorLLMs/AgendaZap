@@ -210,3 +210,8 @@
   .pager .flex{width:100%}
   .pager .btn{flex:1}
 }
+
+/* Keep sidebar content reachable without clipping the collapse control. */
+.sidebar > .logo{flex-shrink:0}
+.sidebar-scroll{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.sidebar-scroll > *{flex-shrink:0}

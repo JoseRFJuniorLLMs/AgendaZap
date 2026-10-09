@@ -1,4 +1,4 @@
-const CACHE = 'agendazap-shell-v4';
+const CACHE = 'agendazap-shell-v5';
 const SHELL = [
   './',
   './index.html',
